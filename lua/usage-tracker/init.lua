@@ -127,4 +127,6 @@ function M.setup()
     load_timers() -- Load the timers from the JSON file on plugin setup
 end
 
+M.setup()
+
 return M
