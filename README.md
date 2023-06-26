@@ -10,6 +10,12 @@ Use your favourite package installer, there are no parameters at the moment. For
 Plug 'gaborvecsei/usage-tracker.nvim'
 ```
 
+And then
+
+```
+require('usage-tracker').setup()
+```
+
 ## Usage
 
 A timer starts when you enter a buffer and stops when you leave the buffer (or quit nvim).
@@ -47,4 +53,3 @@ The data is stored in a json file called `usage_data.json` in the neovim config 
 - [x] Aggregate by git project
 - [ ] UI for view the results (e.g.: popup)
 - [ ] Introduce filter for the buffers, where to trigger the timer (e.g.: we don't care about file explorer buffers)
-
