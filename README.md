@@ -30,18 +30,21 @@ require('usage-tracker').setup({...})
 A timer starts when you enter a buffer and stops when you leave the buffer (or quit nvim).
 Both normal and insert mode is counted.
 
-- Commands
-  - `UsageTrackerShowFiles`
-  - `UsageTrackerShowProjects`
-  - `UsageTrackerShowVisitLog`
-
-Parameters
+### Parameters
 
 | Variable                                | Description                                                                       | Type | Default |
 |-----------------------------------------|-----------------------------------------------------------------------------------|------|---------|
 | `usagetracker_keep_eventlog_days`       | How much days of data should we keep in the event log after a cleanup             | int  | 14      |
 | `usagetracker_cleanup_freq_days`        | Frequency of the cleanup job for the event logs                                   | int  | 7       |
 | `usagetracker_event_wait_period_in_sec` | Event logs are only recorded if this much seconds are elapsed while in the buffer | int  | 5       |
+
+### Commands
+
+- `UsageTrackerShowFiles`
+- `UsageTrackerShowProjects`
+- `UsageTrackerShowVisitLog`
+
+#### Examples
 
 You can view the file-specific stats with **`:UsageTrackerShowFiles`**. Here is an example output:
 
