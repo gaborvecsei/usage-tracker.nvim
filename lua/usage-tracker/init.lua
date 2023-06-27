@@ -44,31 +44,70 @@ end
 -- Happens when we enter to a buffer
 function M.start_timer(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
+
+    if filepath == "" then
+        return
+    end
+
     local git_project_name = get_git_project_name()
 
     if not usage_data[filepath] then
         usage_data[filepath] = {
             git_project_name = git_project_name,
             start_time = os.time(),
-            elapsed_time_sec = 0
+            elapsed_time_sec = 0,
+            keystrokes = 0,
+            -- Will be populated with entries like this: { entry = os.time(), exit = nil }
+            visit_log = {}
         }
-    else
-        usage_data[filepath].start_time = os.time()
-        -- TODO: should we notify the user if the git project name has changed?
-        usage_data[filepath].git_project_name = git_project_name
     end
+
+    usage_data[filepath].start_time = os.time()
+    -- TODO: should we notify the user if the git project name has changed?
+    usage_data[filepath].git_project_name = git_project_name
+
+    -- Record an entry event
+    usage_data[filepath].visit_log[#usage_data[filepath].visit_log + 1] = { entry = os.time(), exit = nil }
+
+    -- Save the updated time to the JSON file
+    save_timers()
 end
 
 --- Stop the timer for the current buffer
 -- Happens when we leave a buffer
 function M.stop_timer(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
+
     if usage_data[filepath] then
+        -- Calculate the time spen with the file
         local elapsed_time_sec = os.time() - usage_data[filepath].start_time
         usage_data[filepath].elapsed_time_sec = usage_data[filepath].elapsed_time_sec + elapsed_time_sec
+
+        -- Record an exit event for the last entry event (as there cannot be an exit without an entry)
+        -- Save entry and exit event only if the elapsed time between them is more than 2 seconds
+        if #usage_data[filepath].visit_log > 0 and os.time() - usage_data[filepath].visit_log[#usage_data[filepath].visit_log].entry > 2 then
+            usage_data[filepath].visit_log[#usage_data[filepath].visit_log].exit = os.time()
+        else
+            -- Otherwise, remove the last entry event
+            usage_data[filepath].visit_log[#usage_data[filepath].visit_log] = nil
+        end
     end
+
     -- Save the updated time to the JSON file
     save_timers()
+end
+
+-- Count the keystrokes
+function M.increase_keystroke_count(bufnr)
+    local filepath = vim.api.nvim_buf_get_name(bufnr)
+
+    if filepath == "" then
+        return
+    end
+
+    if usage_data[filepath] then
+        usage_data[filepath].keystrokes = (usage_data[filepath].keystrokes or 0) + 1
+    end
 end
 
 --- Prints the results in a table format to the messages
@@ -184,26 +223,60 @@ function M.show_results(aggregate_by_git_project)
     end
 end
 
--- Count the keystrokes
-function M.increase_keystroke_count(bufnr)
-    local filepath = vim.api.nvim_buf_get_name(bufnr)
-    if usage_data[filepath] then
-        usage_data[filepath].keystrokes = (usage_data[filepath].keystrokes or 0) + 1
+function M.show_visit_log(filepath)
+    local visit_log = usage_data[filepath].visit_log
+    local headers = { "Enter", "Exit", "Time (min)" }
+    local field_names = { "enter", "exit", "elapsed_time_min" }
+
+    local function ts_to_date(ts)
+        return os.date("%Y-%m-%d %H:%M:%S", ts)
     end
+
+    -- Convert the visit log to a table
+    local visit_log_table = {}
+    for i, row in ipairs(visit_log) do
+        if i < #visit_log then
+            local enter = ts_to_date(row.entry)
+            local exit = ts_to_date(row.exit)
+            local elapsed_time_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
+            visit_log_table[#visit_log_table + 1] = {
+                enter = enter,
+                exit = exit,
+                elapsed_time_min = elapsed_time_min
+            }
+        end
+    end
+    visit_log_table[#visit_log_table + 1] = {
+        enter = ts_to_date(visit_log[#visit_log].entry),
+        exit = "Present",
+        elapsed_time_min = ""
+    }
+
+    -- Sort the visit log based on enter time in descending order
+    table.sort(visit_log_table, function(a, b)
+        return a.enter > b.enter
+    end)
+
+
+    -- Print the table
+    print_table_format(headers, visit_log_table, field_names)
 end
 
 function M.setup()
     -- Autocmd --
 
-    vim.api.nvim_command("autocmd BufEnter * lua require('usage-tracker').start_timer(vim.api.nvim_get_current_buf())")
-    vim.api.nvim_command(
-        "autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer(vim.api.nvim_get_current_buf())")
+    vim.api.nvim_exec([[
+          augroup UsageTracker
+            autocmd!
 
-    -- Increase keystroke count when cursor is moving
-    vim.api.nvim_command(
-        "autocmd TextChanged,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())")
-    vim.api.nvim_command(
-        "autocmd CursorMoved,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())")
+            autocmd BufEnter * lua require('usage-tracker').start_timer(vim.api.nvim_get_current_buf())
+            autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer(vim.api.nvim_get_current_buf())
+
+            autocmd TextChanged,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
+            autocmd CursorMoved,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
+          augroup END
+    ]], false)
+
 
     -- Commands --
 
@@ -211,6 +284,8 @@ function M.setup()
         "command! UsageTrackerShowFiles lua require('usage-tracker').show_results(false)")
     vim.api.nvim_command(
         "command! UsageTrackerShowProjects lua require('usage-tracker').show_results(true)")
+    vim.api.nvim_command(
+        "command! UsageTrackerShowVisitLog lua require('usage-tracker').show_visit_log(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()))")
 
 
     load_timers() -- Load the timers from the JSON file on plugin setup
