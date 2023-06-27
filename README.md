@@ -1,9 +1,11 @@
 # Usage-Tracker.nvim
 
 > The plugin is [WIP], and you can expect breaking changes in the future.
+
 > All contributions are welcome!
 
-Simple lua plugin with which you can track how much time do you spend on the individual files
+Simple lua plugin with which you can track how much time do you spend on the individual files, projects.
+The tool also records entry and exit entries for the files, so later we can visualize this actiivty.
 
 ## Install
 
@@ -27,6 +29,7 @@ Both normal and insert mode is counted.
 - Commands
   - `UsageTrackerShowFiles`
   - `UsageTrackerShowProjects`
+  - `UsageTrackerShowVisitLog`
 
 You can view the file-specific stats with `:UsageTrackerShowFiles`. Here is an example output:
 
@@ -46,6 +49,19 @@ Project             Keystrokes  Time (min)
 ------------------  ----------  ----------
 usage-tracker.nvim  16983       81.23
                     200         1.56
+```
+
+You can view the file-specific event (entry, exit) with `:UsageTrackerShowVisitLog`.
+Call the function when you are at the file you are interested in.
+An event pair is only saved when more time elapsed than 2 seconds between the entry and the exit.
+Here is an example output:
+
+```
+Enter                Exit                 Time (min)
+-------------------  -------------------  ----------
+2023-06-27 13:47:27  Present                        
+2023-06-27 13:47:13  2023-06-27 13:47:17  0.06      
+2023-06-27 13:44:48  2023-06-27 13:47:05  2.28      
 ```
 
 The data is stored in a json file called `usage_data.json` in the neovim config folder (`vim.fn.stdpath("config") .. "/usage_data.json"`)
