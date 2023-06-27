@@ -1,7 +1,7 @@
 local M = {}
 
 -- We'll use this object for storing the data
-local usage_data = {}
+local usage_data = { last_cleanup = os.time(), data = {} }
 -- Use the Neovim config file path
 local jsonFilePath = vim.fn.stdpath("config") .. "/usage_data.json"
 
@@ -51,23 +51,26 @@ function M.start_timer(bufnr)
 
     local git_project_name = get_git_project_name()
 
-    if not usage_data[filepath] then
-        usage_data[filepath] = {
+    if not usage_data.data[filepath] then
+        usage_data.data[filepath] = {
             git_project_name = git_project_name,
             start_time = os.time(),
+            -- Elapsed time in seconds (lifetime)
             elapsed_time_sec = 0,
+            -- Number of keystrokes (lifetime)
             keystrokes = 0,
             -- Will be populated with entries like this: { entry = os.time(), exit = nil }
+            -- This allows for more granular time tracking if needed
             visit_log = {}
         }
     end
 
-    usage_data[filepath].start_time = os.time()
+    usage_data.data[filepath].start_time = os.time()
     -- TODO: should we notify the user if the git project name has changed?
-    usage_data[filepath].git_project_name = git_project_name
+    usage_data.data[filepath].git_project_name = git_project_name
 
     -- Record an entry event
-    usage_data[filepath].visit_log[#usage_data[filepath].visit_log + 1] = { entry = os.time(), exit = nil }
+    usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log + 1] = { entry = os.time(), exit = nil }
 
     -- Save the updated time to the JSON file
     save_timers()
@@ -78,18 +81,18 @@ end
 function M.stop_timer(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
-    if usage_data[filepath] then
+    if usage_data.data[filepath] then
         -- Calculate the time spen with the file
-        local elapsed_time_sec = os.time() - usage_data[filepath].start_time
-        usage_data[filepath].elapsed_time_sec = usage_data[filepath].elapsed_time_sec + elapsed_time_sec
+        local elapsed_time_sec = os.time() - usage_data.data[filepath].start_time
+        usage_data.data[filepath].elapsed_time_sec = usage_data.data[filepath].elapsed_time_sec + elapsed_time_sec
 
         -- Record an exit event for the last entry event (as there cannot be an exit without an entry)
-        -- Save entry and exit event only if the elapsed time between them is more than 2 seconds
-        if #usage_data[filepath].visit_log > 0 and os.time() - usage_data[filepath].visit_log[#usage_data[filepath].visit_log].entry > 2 then
-            usage_data[filepath].visit_log[#usage_data[filepath].visit_log].exit = os.time()
+        -- Save entry and exit event only if the elapsed time between them is more than N seconds
+        if #usage_data.data[filepath].visit_log > 0 and os.time() - usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log].entry > vim.g.usagetracker_event_wait_period_in_sec then
+            usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log].exit = os.time()
         else
             -- Otherwise, remove the last entry event
-            usage_data[filepath].visit_log[#usage_data[filepath].visit_log] = nil
+            usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log] = nil
         end
     end
 
@@ -105,8 +108,8 @@ function M.increase_keystroke_count(bufnr)
         return
     end
 
-    if usage_data[filepath] then
-        usage_data[filepath].keystrokes = (usage_data[filepath].keystrokes or 0) + 1
+    if usage_data.data[filepath] then
+        usage_data.data[filepath].keystrokes = (usage_data.data[filepath].keystrokes or 0) + 1
     end
 end
 
@@ -162,7 +165,7 @@ function M.show_results(aggregate_by_git_project)
 
     -- Prepare results
     local result = {}
-    for filepath, timer in pairs(usage_data) do
+    for filepath, timer in pairs(usage_data.data) do
         result[#result + 1] = {
             filepath = filepath or '',
             keystrokes = timer.keystrokes or 0,
@@ -224,7 +227,7 @@ function M.show_results(aggregate_by_git_project)
 end
 
 function M.show_visit_log(filepath)
-    local visit_log = usage_data[filepath].visit_log
+    local visit_log = usage_data.data[filepath].visit_log
     local headers = { "Enter", "Exit", "Time (min)" }
     local field_names = { "enter", "exit", "elapsed_time_min" }
 
@@ -257,12 +260,44 @@ function M.show_visit_log(filepath)
         return a.enter > b.enter
     end)
 
-
     -- Print the table
     print_table_format(headers, visit_log_table, field_names)
 end
 
-function M.setup()
+-- Clean up the visit log by removing older than 2 week entries (where the entry is older than 2 weeks)
+local function clenup_visit_log(filepath, days)
+    local visit_log = usage_data.data[filepath].visit_log
+    local now = os.time()
+    local time_threshold_in_sec = days * 24 * 60 * 60
+    local i = 1
+    while i <= #visit_log do
+        local row = visit_log[i]
+        if now - row.entry > time_threshold_in_sec then
+            table.remove(visit_log, i)
+        else
+            i = i + 1
+        end
+    end
+end
+
+function M.setup(opts)
+    -- Plugin parameters --
+
+    local function set_default(opt, default)
+        local prefix = "usagetracker_"
+        if vim.g[prefix .. opt] ~= nil then
+            return
+        elseif opts[opt] ~= nil then
+            vim.g[prefix .. opt] = opts[opt]
+        else
+            vim.g[prefix .. opt] = default
+        end
+    end
+
+    set_default("keep_eventlog_days", 14)
+    set_default("cleanup_freq_days", 7)
+    set_default("event_wait_period_in_sec", 5)
+
     -- Autocmd --
 
     vim.api.nvim_exec([[
@@ -287,10 +322,23 @@ function M.setup()
     vim.api.nvim_command(
         "command! UsageTrackerShowVisitLog lua require('usage-tracker').show_visit_log(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()))")
 
+    -- Load existing data --
 
     load_timers() -- Load the timers from the JSON file on plugin setup
+
+    -- Cleanup --
+
+    -- Clean up the visit log every week, and keep only the last 14 days of data
+    local now = os.time()
+    if now - usage_data.last_cleanup > (vim.g.usagetracker_cleanup_freq_days * 24 * 60 * 60) then
+        for filepath, _ in pairs(usage_data.data) do
+            clenup_visit_log(filepath, vim.g.usagetracker_keep_eventlog_days)
+        end
+        usage_data.last_cleanup = now
+        save_timers()
+    end
 end
 
-M.setup()
+M.setup({})
 
 return M

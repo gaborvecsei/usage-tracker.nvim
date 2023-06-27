@@ -18,7 +18,11 @@ Plug 'gaborvecsei/usage-tracker.nvim'
 And then
 
 ```
+-- default parameters
 require('usage-tracker').setup()
+
+-- or if you would like to modify the parameters:
+require('usage-tracker').setup({...})
 ```
 
 ## Usage
@@ -31,7 +35,15 @@ Both normal and insert mode is counted.
   - `UsageTrackerShowProjects`
   - `UsageTrackerShowVisitLog`
 
-You can view the file-specific stats with `:UsageTrackerShowFiles`. Here is an example output:
+Parameters
+
+| Variable                                | Description                                                                       | Type | Default |   |
+|-----------------------------------------|-----------------------------------------------------------------------------------|------|---------|---|
+| `usagetracker_keep_eventlog_days`       | How much days of data should we keep in the event log after a cleanup             | int  | 14      |   |
+| `usagetracker_cleanup_freq_days`        | Frequency of the cleanup job for the event logs                                   | int  | 7       |   |
+| `usagetracker_event_wait_period_in_sec` | Event logs are only recorded if this much seconds are elapsed while in the buffer | int  | 5       |   |
+
+You can view the file-specific stats with **`:UsageTrackerShowFiles`**. Here is an example output:
 
 ```
 Filepath                                             Keystrokes  Time (min)  Project
@@ -42,7 +54,7 @@ Filepath                                             Keystrokes  Time (min)  Pro
 /work/usage-tracker.nvim/lua/usage-tracker/asd       33          0.28        usage-tracker.nvim
 ```
 
-You can view the project-specific stats with `:UsageTrackerShowProjects`. Here is an example output:
+You can view the project-specific stats with **`:UsageTrackerShowProjects`**. Here is an example output:
 
 ```
 Project             Keystrokes  Time (min)
@@ -51,7 +63,7 @@ usage-tracker.nvim  16983       81.23
                     200         1.56
 ```
 
-You can view the file-specific event (entry, exit) with `:UsageTrackerShowVisitLog`.
+You can view the file-specific event (entry, exit) with **`:UsageTrackerShowVisitLog`**.
 Call the function when you are at the file you are interested in.
 An event pair is only saved when more time elapsed than 2 seconds between the entry and the exit.
 Here is an example output:
