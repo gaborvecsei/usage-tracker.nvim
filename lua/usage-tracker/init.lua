@@ -54,23 +54,21 @@ function M.start_timer(bufnr)
     if not usage_data.data[filepath] then
         usage_data.data[filepath] = {
             git_project_name = git_project_name,
-            start_time = os.time(),
-            -- Elapsed time in seconds (lifetime)
-            elapsed_time_sec = 0,
-            -- Number of keystrokes (lifetime)
-            keystrokes = 0,
-            -- Will be populated with entries like this: { entry = os.time(), exit = nil }
-            -- This allows for more granular time tracking if needed
+            -- Will be populated with entries like this: { entry = os.time(), exit = nil , elapsed_time_sec = 0, keystrokes = 0 }
             visit_log = {}
         }
     end
 
-    usage_data.data[filepath].start_time = os.time()
     -- TODO: should we notify the user if the git project name has changed?
     usage_data.data[filepath].git_project_name = git_project_name
 
     -- Record an entry event
-    usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log + 1] = { entry = os.time(), exit = nil }
+    usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log + 1] = {
+        entry = os.time(),
+        exit = nil,
+        keystrokes = 0,
+        elapsed_time_sec = 0
+    }
 
     -- Save the updated time to the JSON file
     save_timers()
@@ -82,17 +80,17 @@ function M.stop_timer(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
     if usage_data.data[filepath] then
-        -- Calculate the time spen with the file
-        local elapsed_time_sec = os.time() - usage_data.data[filepath].start_time
-        usage_data.data[filepath].elapsed_time_sec = usage_data.data[filepath].elapsed_time_sec + elapsed_time_sec
-
         -- Record an exit event for the last entry event (as there cannot be an exit without an entry)
+        -- and calculate the elapsed time
         -- Save entry and exit event only if the elapsed time between them is more than N seconds
-        if #usage_data.data[filepath].visit_log > 0 and os.time() - usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log].entry > vim.g.usagetracker_event_wait_period_in_sec then
-            usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log].exit = os.time()
+        local visit_log = usage_data.data[filepath].visit_log
+        if (#visit_log > 0) and ((os.time() - visit_log[#visit_log].entry) > vim.g.usagetracker_event_wait_period_in_sec) then
+            local last_entry = visit_log[#visit_log]
+            last_entry.exit = os.time()
+            last_entry.elapsed_time_sec = last_entry.exit - last_entry.entry
         else
-            -- Otherwise, remove the last entry event
-            usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log] = nil
+            -- Remove the last entry event
+            visit_log[#visit_log] = nil
         end
     end
 
@@ -109,7 +107,10 @@ function M.increase_keystroke_count(bufnr)
     end
 
     if usage_data.data[filepath] then
-        usage_data.data[filepath].keystrokes = (usage_data.data[filepath].keystrokes or 0) + 1
+        local visit_log = usage_data.data[filepath].visit_log
+        if #visit_log > 0 then
+            visit_log[#visit_log].keystrokes = visit_log[#visit_log].keystrokes + 1
+        end
     end
 end
 
@@ -155,8 +156,39 @@ local function print_table_format(headers, data, field_names)
 end
 
 
+local function lifetime_aggregation_of_visit_logs()
+    local result = {}
 
-function M.show_results(aggregate_by_git_project)
+    for filepath, data in pairs(usage_data.data) do
+        local total_keystrokes = 0
+        local total_elapsed_time_sec = 0
+
+        for _, visit_log in ipairs(data.visit_log) do
+            total_keystrokes = total_keystrokes + visit_log.keystrokes
+            total_elapsed_time_sec = total_elapsed_time_sec + visit_log.elapsed_time_sec
+        end
+
+        local total_elapsed_time_min = math.floor(total_elapsed_time_sec / 60 * 100) / 100
+        local total_elapsed_time_hour = math.floor(total_elapsed_time_min / 60 * 100) / 100
+
+        local result_item = {
+            name = vim.fn.fnamemodify(filepath, ":t"),
+            path = filepath,
+            git_project_name = data.git_project_name,
+            keystrokes = total_keystrokes,
+            elapsed_time_in_sec = total_elapsed_time_sec,
+            elapsed_time_in_min = total_elapsed_time_min,
+            elapsed_time_in_hour = total_elapsed_time_hour,
+        }
+        result[#result + 1] = result_item
+    end
+
+    return result
+end
+
+
+
+function M.show_usage_by_file()
     -- We would like to show up to date results, so we need to stop the timer in order to save the current result
     -- and start a new one immediately
     local current_bufnr = vim.api.nvim_get_current_buf()
@@ -164,72 +196,35 @@ function M.show_results(aggregate_by_git_project)
     M.start_timer(current_bufnr)
 
     -- Prepare results
-    local result = {}
-    for filepath, timer in pairs(usage_data.data) do
-        result[#result + 1] = {
-            filepath = filepath or '',
-            keystrokes = timer.keystrokes or 0,
-            elapsed_time_min = math.floor(timer.elapsed_time_sec / 60 * 100) / 100,
-            git_project_name = timer.git_project_name or ''
-        }
-    end
+    local result = lifetime_aggregation_of_visit_logs()
 
-    if not aggregate_by_git_project then
-        local headers = { "Filepath", "Keystrokes", "Time (min)", "Project" }
-        local field_names = { "filepath", "keystrokes", "elapsed_time_min", "git_project_name" }
+    local headers = { "Filepath", "Keystrokes", "Time (min)", "Project" }
+    local field_names = { "path", "keystrokes", "elapsed_time_in_min", "git_project_name" }
 
 
-        -- Sort the result table based on elapsed_time_sec in descending order
-        table.sort(result, function(a, b)
-            return a.elapsed_time_min > b.elapsed_time_min
-        end)
+    -- Sort the result table based on elapsed_time_sec in descending order
+    table.sort(result, function(a, b)
+        return a.elapsed_time_in_min > b.elapsed_time_in_min
+    end)
 
-        -- Print the table
-        print_table_format(headers, result, field_names)
-    else
-        local headers = { "Project", "Keystrokes", "Time (min)" }
-        local field_names = { "git_project_name", "keystrokes", "elapsed_time_min" }
-
-        -- Aggregate the results by git project name
-        local aggregated_result = {}
-        for _, row in ipairs(result) do
-            local git_project_name = row.git_project_name
-            if not aggregated_result[git_project_name] then
-                aggregated_result[git_project_name] = {
-                    keystrokes = 0,
-                    elapsed_time_min = 0
-                }
-            end
-            aggregated_result[git_project_name].keystrokes = aggregated_result[git_project_name].keystrokes +
-                row.keystrokes
-            aggregated_result[git_project_name].elapsed_time_min = aggregated_result[git_project_name].elapsed_time_min +
-                row.elapsed_time_min
-        end
-
-        -- Convert the aggregated result to a table
-        local aggregated_result_table = {}
-        for git_project_name, row in pairs(aggregated_result) do
-            aggregated_result_table[#aggregated_result_table + 1] = {
-                git_project_name = git_project_name,
-                keystrokes = row.keystrokes,
-                elapsed_time_min = row.elapsed_time_min
-            }
-        end
-
-        -- Sort the result table based on elapsed_time_sec in descending order
-        table.sort(aggregated_result_table, function(a, b)
-            return a.elapsed_time_min > b.elapsed_time_min
-        end)
-
-        -- Print the table
-        print_table_format(headers, aggregated_result_table, field_names)
-    end
+    -- Print the table
+    print_table_format(headers, result, field_names)
 end
 
 function M.show_visit_log(filepath)
+    if filepath == nil then
+        filepath = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
+    end
+
+    if not usage_data.data[filepath] then
+        print("No visit log for this file (filepath: " .. filepath .. ")")
+        return
+    end
+
     local visit_log = usage_data.data[filepath].visit_log
-    local headers = { "Enter", "Exit", "Time (min)" }
-    local field_names = { "enter", "exit", "elapsed_time_min" }
+
+    local headers = { "Enter", "Exit", "Time (min)", "Keystrokes" }
+    local field_names = { "enter", "exit", "elapsed_time_in_min", "keystrokes" }
 
     local function ts_to_date(ts)
         return os.date("%Y-%m-%d %H:%M:%S", ts)
@@ -241,18 +236,21 @@ function M.show_visit_log(filepath)
         if i < #visit_log then
             local enter = ts_to_date(row.entry)
             local exit = ts_to_date(row.exit)
-            local elapsed_time_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
+            local elapsed_time_in_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
             visit_log_table[#visit_log_table + 1] = {
                 enter = enter,
                 exit = exit,
-                elapsed_time_min = elapsed_time_min
+                elapsed_time_in_min = elapsed_time_in_min,
+                keystrokes = row.keystrokes
             }
         end
     end
+    -- Add the last entry manually as there is no end to it
     visit_log_table[#visit_log_table + 1] = {
         enter = ts_to_date(visit_log[#visit_log].entry),
         exit = "Present",
-        elapsed_time_min = ""
+        elapsed_time_in_min = "",
+        keystrokes = visit_log[#visit_log].keystrokes
     }
 
     -- Sort the visit log based on enter time in descending order
@@ -272,7 +270,7 @@ local function clenup_visit_log(filepath, days)
     local i = 1
     while i <= #visit_log do
         local row = visit_log[i]
-        if now - row.entry > time_threshold_in_sec then
+        if (now - row.entry) > time_threshold_in_sec then
             table.remove(visit_log, i)
         else
             i = i + 1
@@ -308,7 +306,7 @@ function M.setup(opts)
             autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer(vim.api.nvim_get_current_buf())
 
             autocmd TextChanged,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
-            autocmd CursorMoved,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
+            autocmd CursorMoved,CursorMovedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
           augroup END
     ]], false)
 
@@ -316,11 +314,9 @@ function M.setup(opts)
     -- Commands --
 
     vim.api.nvim_command(
-        "command! UsageTrackerShowFiles lua require('usage-tracker').show_results(false)")
+        "command! UsageTrackerShowFiles lua require('usage-tracker').show_usage_by_file()")
     vim.api.nvim_command(
-        "command! UsageTrackerShowProjects lua require('usage-tracker').show_results(true)")
-    vim.api.nvim_command(
-        "command! UsageTrackerShowVisitLog lua require('usage-tracker').show_visit_log(vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()))")
+        "command! -nargs=? UsageTrackerShowVisitLog lua require('usage-tracker').show_visit_log(<f-args>)")
 
     -- Load existing data --
 
@@ -328,7 +324,7 @@ function M.setup(opts)
 
     -- Cleanup --
 
-    -- Clean up the visit log every week, and keep only the last 14 days of data
+    -- Clean up the visit log
     local now = os.time()
     if now - usage_data.last_cleanup > (vim.g.usagetracker_cleanup_freq_days * 24 * 60 * 60) then
         for filepath, _ in pairs(usage_data.data) do
