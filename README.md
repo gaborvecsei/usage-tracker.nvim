@@ -2,10 +2,7 @@
 
 > The plugin is [WIP], and you can expect breaking changes in the future.
 
-> All contributions are welcome!
-
 Simple lua plugin with which you can track how much time do you spend on the individual files, projects.
-The tool also records entry and exit entries for the files, so later we can visualize this actiivty.
 
 ## Install
 
@@ -41,7 +38,7 @@ Both normal and insert mode is counted.
 ### Commands
 
 - `UsageTrackerShowFiles`
-- `UsageTrackerShowProjects`
+- `UsageTrackerShowProjects` - TODO
 - `UsageTrackerShowVisitLog`
 
 #### Examples
@@ -57,7 +54,7 @@ Filepath                                             Keystrokes  Time (min)  Pro
 /work/usage-tracker.nvim/lua/usage-tracker/asd       33          0.28        usage-tracker.nvim
 ```
 
-You can view the project-specific stats with **`:UsageTrackerShowProjects`**. Here is an example output:
+You can view the project-specific stats with **`:UsageTrackerShowProjects`**. Here is an example output (**not yet implemented**):
 
 ```
 Project             Keystrokes  Time (min)
@@ -66,9 +63,9 @@ usage-tracker.nvim  16983       81.23
                     200         1.56
 ```
 
-You can view the file-specific event (entry, exit) with **`:UsageTrackerShowVisitLog`**.
-Call the function when you are at the file you are interested in.
-An event pair is only saved when more time elapsed than 2 seconds between the entry and the exit.
+You can view the file-specific event (entry, exit) with **`:UsageTrackerShowVisitLog <filepath>`**.
+Call the function when you are at the file you are interested in without any arguments or you can provide the filename as an argument.
+An event pair is only saved when more time elapsed than `usagetracker_event_wait_period_in_sec` seconds between the entry and the exit.
 Here is an example output:
 
 ```
