@@ -29,11 +29,13 @@ Both normal and insert mode is counted.
 
 ### Parameters
 
-| Variable                                | Description                                                                       | Type | Default |
-|-----------------------------------------|-----------------------------------------------------------------------------------|------|---------|
-| `usagetracker_keep_eventlog_days`       | How much days of data should we keep in the event log after a cleanup             | int  | 14      |
-| `usagetracker_cleanup_freq_days`        | Frequency of the cleanup job for the event logs                                   | int  | 7       |
-| `usagetracker_event_wait_period_in_sec` | Event logs are only recorded if this much seconds are elapsed while in the buffer | int  | 5       |
+| Variable                                    | Description                                                                       | Type | Default |
+|---------------------------------------------|-----------------------------------------------------------------------------------|------|---------|
+| `usagetracker_keep_eventlog_days`           | How much days of data should we keep in the event log after a cleanup             | int  | 14      |
+| `usagetracker_cleanup_freq_days`            | Frequency of the cleanup job for the event logs                                   | int  | 7       |
+| `usagetracker_event_wait_period_in_sec`     | Event logs are only recorded if this much seconds are elapsed while in the buffer | int  | 5       |
+| `usagetracker_inactivity_threshold_in_min`  | If the cursor is not moving for this much time, the timer will be stopped         | int  | 5       |
+| `usagetracker_inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
 
 ### Commands
 
@@ -80,7 +82,7 @@ The data is stored in a json file called `usage_data.json` in the neovim config 
 
 ## TODO
 
-- [ ] Stop timer on inactivity (e.g.: cursor was not moved for X minutes, let's not count inactivity)
+- [x] Stop timer on inactivity (e.g.: cursor was not moved for X minutes, let's not count inactivity)
 - [x] Aggregate by git project
 - [ ] UI for view the results (e.g.: popup)
 - [ ] Introduce filter for the buffers, where to trigger the timer (e.g.: we don't care about file explorer buffers)
