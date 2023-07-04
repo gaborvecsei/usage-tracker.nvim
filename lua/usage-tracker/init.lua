@@ -49,6 +49,15 @@ local function get_git_project_name()
     end
 end
 
+local function get_buffer_filetype(bufnr)
+    local filetype = vim.api.nvim_buf_get_option(bufnr, "filetype")
+    if filetype == "" then
+        return ""
+    else
+        return filetype
+    end
+end
+
 
 --- Start the timer for the current buffer
 -- Happens when we enter to a buffer
@@ -60,10 +69,12 @@ function M.start_timer(bufnr)
     end
 
     local git_project_name = get_git_project_name()
+    local buffer_filetype = get_buffer_filetype(bufnr)
 
     if not usage_data.data[filepath] then
         usage_data.data[filepath] = {
             git_project_name = git_project_name,
+            filetype = buffer_filetype,
             -- Will be populated with entries like this: { entry = os.time(), exit = nil , elapsed_time_sec = 0, keystrokes = 0 }
             visit_log = {}
         }
@@ -201,6 +212,7 @@ local function lifetime_aggregation_of_visit_logs()
             name = vim.fn.fnamemodify(filepath, ":t"),
             path = filepath,
             git_project_name = data.git_project_name,
+            filetype = data.filetype,
             keystrokes = total_keystrokes,
             elapsed_time_in_sec = total_elapsed_time_sec,
             elapsed_time_in_min = total_elapsed_time_min,
@@ -319,6 +331,130 @@ local function handle_inactivity()
     end
 end
 
+-- data looks like this: {{name: 2022-02-30, value: 235.67}, ...}
+local function draw_vertical_barchart(data)
+    local max_value = 0
+    for _, item in ipairs(data) do
+        if item.value > max_value then
+            max_value = item.value
+        end
+    end
+
+    local max_value_length = string.len(tostring(max_value))
+    local max_name_length = 0
+    for _, item in ipairs(data) do
+        if string.len(item.name) > max_name_length then
+            max_name_length = string.len(item.name)
+        end
+    end
+
+    local function draw_bar(value, max_value)
+        local bar_length = math.floor((value / max_value) * 100)
+        local bar = ""
+        for i = 1, bar_length do
+            bar = bar .. "#"
+        end
+        return bar
+    end
+
+    local function draw_value(value, max_value)
+        local value_length = string.len(tostring(value))
+        local value_string = ""
+        for i = 1, max_value_length - value_length do
+            value_string = value_string .. " "
+        end
+        value_string = value_string .. value
+        return value_string
+    end
+
+    local function draw_name(name, max_name_length)
+        local name_length = string.len(name)
+        local name_string = name
+        for i = 1, max_name_length - name_length do
+            name_string = name_string .. " "
+        end
+        return name_string
+    end
+
+    local function draw_line(name, value, max_value)
+        local bar = draw_bar(value, max_value)
+        local value_string = draw_value(value, max_value)
+        local name_string = draw_name(name, max_name_length)
+        return name_string .. " | " .. bar .. " | " .. value_string
+    end
+
+    for _, item in ipairs(data) do
+        print(draw_line(item.name, item.value, max_value))
+    end
+end
+
+--- This function should return the daily aggregates of the usage data
+--- Example for the daily aggregation:
+--- {{day: 2022-01-02, time_in_sec: 2345, keystrokes: 1234}, {day: 2022-01-03, time_in_sec: 2345, keystrokes: 1234}, ...}
+-- @param freq Frequency of the aggregation, possible values: H (hourly), D (daily)
+---@param filetype Filetype which we would like to include, if empty then we don't filter for any filetype and everything is included
+---@param project_name Project name which we would like to include, if empty then we don't filter for any project and everything is included
+function M.create_time_based_usage_aggregation(filetype, project_name)
+    local result = {}
+    for filepath, file_data in pairs(usage_data.data) do
+        if (filetype == nil or filetype == file_data.filetype) and (project_name == nil or project_name == file_data.git_project_name) then
+            local visit_log = file_data.visit_log
+            for _, row_data in ipairs(visit_log) do
+                -- We'll use the entry time as the key for the result table
+                local entry_date = os.date("%Y-%m-%d", row_data.entry)
+                local exit_date = os.date("%Y-%m-%d", row_data.exit)
+                if entry_date ~= exit_date then
+                    print(
+                        "usage-tracker.nvim: Entry and exit date are different, we'll use the entry date during the aggregation")
+                end
+
+                local time_in_sec = row_data.elapsed_time_sec
+                local keystrokes = row_data.keystrokes
+
+                if result[entry_date] == nil then
+                    result[entry_date] = {
+                        time_in_sec = time_in_sec,
+                        keystrokes = keystrokes
+                    }
+                else
+                    result[entry_date].time_in_sec = result[entry_date].time_in_sec + time_in_sec
+                    result[entry_date].keystrokes = result[entry_date].keystrokes + keystrokes
+                end
+            end
+        end
+    end
+
+    -- Flatten the table and then order it based on the date
+    local result_table = {}
+    for day_date, data in pairs(result) do
+        result_table[#result_table + 1] = {
+            day = day_date,
+            time_in_sec = data.time_in_sec,
+            time_in_min = math.floor(data.time_in_sec / 60 * 100) / 100,
+            keystrokes = data.keystrokes
+        }
+    end
+
+    table.sort(result_table, function(a, b)
+        return a.day < b.day
+    end)
+
+    local headers = { "Day", "Time in min", "Keystrokes" }
+    local field_names = { "day", "time_in_min", "keystrokes" }
+    print_table_format(headers, result_table, field_names)
+
+    -- draw barchart
+    local barchart_data = {}
+    for _, item in ipairs(result_table) do
+        barchart_data[#barchart_data + 1] = {
+            name = item.day,
+            value = item.time_in_min
+        }
+    end
+    draw_vertical_barchart(barchart_data)
+
+end
+
 function M.setup(opts)
     -- Plugin parameters --
 
@@ -365,6 +501,10 @@ function M.setup(opts)
         "command! UsageTrackerShowFiles lua require('usage-tracker').show_usage_by_file()")
     vim.api.nvim_command(
         "command! -nargs=? UsageTrackerShowVisitLog lua require('usage-tracker').show_visit_log(<f-args>)")
+    -- command to check the dayly aggregation create_time_based_usage_aggregation
+    -- both parameters should be optional
+    vim.api.nvim_command(
+        "command! -nargs=? UsageTrackerShowDailyAggregation lua require('usage-tracker').create_time_based_usage_aggregation(<f-args>)")
 
     -- Load existing data --
 
