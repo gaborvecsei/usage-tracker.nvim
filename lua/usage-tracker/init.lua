@@ -5,6 +5,16 @@ local usage_data = { last_cleanup = os.time(), data = {} }
 -- Use the Neovim config file path
 local jsonFilePath = vim.fn.stdpath("config") .. "/usage_data.json"
 
+-- Variable to keep track of the last activity time - needed for inactivity "detection"
+local is_inactive = false
+local last_activity_time = os.time()
+
+-- Variable to keep track of the current buffer
+-- Mostly needed as we cannot use the vim.api.nvim_buf_get_name and vim.api.nvim_get_current_buf functions
+-- in the vim event loops (which is needed for the inactivity detection)
+local current_bufnr = nil
+local current_bufname = nil
+
 
 --- Save the timers to the JSON file
 local function save_timers()
@@ -70,14 +80,19 @@ function M.start_timer(bufnr)
         elapsed_time_sec = 0
     }
 
+    is_inactive = false
+    last_activity_time = os.time()
+    current_bufnr = bufnr
+    current_bufname = filepath
+
     -- Save the updated time to the JSON file
     save_timers()
 end
 
 --- Stop the timer for the current buffer
 -- Happens when we leave a buffer
-function M.stop_timer(bufnr)
-    local filepath = vim.api.nvim_buf_get_name(bufnr)
+function M.stop_timer()
+    local filepath = current_bufname
 
     if usage_data.data[filepath] then
         -- Record an exit event for the last entry event (as there cannot be an exit without an entry)
@@ -102,6 +117,12 @@ end
 function M.increase_keystroke_count(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
+    if is_inactive then
+        -- As there is activity we can start the timer again
+        M.start_timer(bufnr)
+        is_inactive = false
+    end
+
     if filepath == "" then
         return
     end
@@ -112,6 +133,11 @@ function M.increase_keystroke_count(bufnr)
             visit_log[#visit_log].keystrokes = visit_log[#visit_log].keystrokes + 1
         end
     end
+
+    -- Update the last activity time
+    last_activity_time = os.time()
+    current_bufnr = bufnr
+    current_bufname = filepath
 end
 
 --- Prints the results in a table format to the messages
@@ -191,8 +217,7 @@ end
 function M.show_usage_by_file()
     -- We would like to show up to date results, so we need to stop the timer in order to save the current result
     -- and start a new one immediately
-    local current_bufnr = vim.api.nvim_get_current_buf()
-    M.stop_timer(current_bufnr)
+    M.stop_timer()
     M.start_timer(current_bufnr)
 
     -- Prepare results
@@ -245,13 +270,15 @@ function M.show_visit_log(filepath)
             }
         end
     end
-    -- Add the last entry manually as there is no end to it
-    visit_log_table[#visit_log_table + 1] = {
-        enter = ts_to_date(visit_log[#visit_log].entry),
-        exit = "Present",
-        elapsed_time_in_min = "",
-        keystrokes = visit_log[#visit_log].keystrokes
-    }
+    -- Add the last entry manually as there is no end to it. Only if we are at this file currently
+    if vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()) == filepath then
+        visit_log_table[#visit_log_table + 1] = {
+            enter = ts_to_date(visit_log[#visit_log].entry),
+            exit = "Present",
+            elapsed_time_in_min = "",
+            keystrokes = visit_log[#visit_log].keystrokes
+        }
+    end
 
     -- Sort the visit log based on enter time in descending order
     table.sort(visit_log_table, function(a, b)
@@ -278,6 +305,20 @@ local function clenup_visit_log(filepath, days)
     end
 end
 
+local function handle_inactivity()
+    if is_inactive then
+        -- if it's already inactive then do nothing
+        return
+    end
+
+    if (os.time() - last_activity_time) > (vim.g.usagetracker_inactivity_threshold_in_min * 60) then
+        -- Stop the timer for the current buffer
+        M.stop_timer()
+        is_inactive = true
+        print("usage-tracker.nvim: Inactivity detected for buffer " .. current_bufnr)
+    end
+end
+
 function M.setup(opts)
     -- Plugin parameters --
 
@@ -295,6 +336,13 @@ function M.setup(opts)
     set_default("keep_eventlog_days", 14)
     set_default("cleanup_freq_days", 7)
     set_default("event_wait_period_in_sec", 5)
+    set_default("inactivity_threshold_in_min", 5)
+    set_default("inactivity_check_freq_in_sec", 1)
+
+    -- Initialize some of the variables
+    last_activity_time = os.time()
+    current_bufnr = vim.api.nvim_get_current_buf()
+    current_bufname = vim.api.nvim_buf_get_name(current_bufnr)
 
     -- Autocmd --
 
@@ -303,7 +351,7 @@ function M.setup(opts)
             autocmd!
 
             autocmd BufEnter * lua require('usage-tracker').start_timer(vim.api.nvim_get_current_buf())
-            autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer(vim.api.nvim_get_current_buf())
+            autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer()
 
             autocmd TextChanged,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
             autocmd CursorMoved,CursorMovedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
@@ -333,6 +381,12 @@ function M.setup(opts)
         usage_data.last_cleanup = now
         save_timers()
     end
+
+    -- Check for inactivity every N seconds
+    local timer = vim.loop.new_timer()
+    timer:start(0, vim.g.usagetracker_inactivity_check_freq_in_sec * 1000, function()
+        handle_inactivity()
+    end)
 end
 
 M.setup({})
