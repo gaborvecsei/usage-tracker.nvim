@@ -336,7 +336,7 @@ function M.setup(opts)
     set_default("keep_eventlog_days", 14)
     set_default("cleanup_freq_days", 7)
     set_default("event_wait_period_in_sec", 5)
-    set_default("inactivity_threshold_in_min", 0.1)
+    set_default("inactivity_threshold_in_min", 5)
     set_default("inactivity_check_freq_in_sec", 1)
 
     -- Initialize some of the variables
