@@ -3,6 +3,9 @@ local utils = require("usage-tracker.utils")
 local M = {}
 
 
+--- Creates a lifetime aggregation of the visit logs for each file present in the usage data
+---@param usage_data table
+---@return table
 function M.lifetime_aggregation_of_visit_logs(usage_data)
     local result = {}
 
@@ -34,11 +37,12 @@ function M.lifetime_aggregation_of_visit_logs(usage_data)
     return result
 end
 
---- This function which aggregates usage data day by day
+--- Creates a daily aggregation of the visit logs
 --- Example for the daily aggregation:
 --- {{day: 2022-01-02, time_in_sec: 2345, keystrokes: 1234}, {day: 2022-01-03, time_in_sec: 2345, keystrokes: 1234}, ...}
----@param filetypes table Filetypes which we would like to include, if empty then we don't filter for any filetypes and everything is included
+---@param filetypes string[] Filetypes which we would like to include, if empty then we don't filter for any filetypes and everything is included
 ---@param project_name string Project name which we would like to include, if empty then we don't filter for any project and everything is included
+---@return table
 function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
     local result = {}
     for _, file_data in pairs(usage_data.data) do

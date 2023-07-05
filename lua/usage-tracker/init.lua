@@ -5,19 +5,27 @@ local agg = require("usage-tracker.agg")
 local M = {}
 
 -- We'll use this object for storing the data
+---@type table
 local usage_data = { last_cleanup = os.time(), data = {} }
+
 -- Use the Neovim config file path
+---@type string
 local jsonFilePath = vim.fn.stdpath("config") .. "/usage_data.json"
 
 -- Variable to keep track of the last activity time - needed for inactivity "detection"
+---@type boolean
 local is_inactive = false
-local last_activity_time = os.time()
+
+---@type number
+local last_activity_timestamp = os.time()
 
 -- Variable to keep track of the current buffer
 -- Mostly needed as we cannot use the vim.api.nvim_buf_get_name and vim.api.nvim_get_current_buf functions
 -- in the vim event loops (which is needed for the inactivity detection)
+---@type number
 local current_bufnr = nil
-local current_bufname = nil
+---@type string
+local current_buffer_filepath = nil
 
 
 --- Save the timers to the JSON file
@@ -73,12 +81,12 @@ function M.start_timer(bufnr)
     }
 
     is_inactive = false
-    last_activity_time = os.time()
+    last_activity_timestamp = os.time()
     current_bufnr = bufnr
-    current_bufname = filepath
+    current_buffer_filepath = filepath
 
     utils.verbose_print("Timer started for " ..
-        current_bufname .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
 
     -- Save the updated time to the JSON file
     save_usage_data()
@@ -87,7 +95,7 @@ end
 --- Stop the timer for the current buffer
 -- Happens when we leave a buffer
 function M.stop_timer()
-    local filepath = current_bufname
+    local filepath = current_buffer_filepath
 
     if usage_data.data[filepath] then
         -- Record an exit event for the last entry event (as there cannot be an exit without an entry)
@@ -105,7 +113,7 @@ function M.stop_timer()
     end
 
     utils.verbose_print("Timer stopped for " ..
-        current_bufname .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
 
     -- Save the updated time to the JSON file
     save_usage_data()
@@ -132,9 +140,9 @@ function M.activity_on_keystroke(bufnr)
     end
 
     -- Update the last activity time
-    last_activity_time = os.time()
+    last_activity_timestamp = os.time()
     current_bufnr = bufnr
-    current_bufname = filepath
+    current_buffer_filepath = filepath
 end
 
 function M.show_usage_by_file()
@@ -255,7 +263,7 @@ local function handle_inactivity()
         return
     end
 
-    if (os.time() - last_activity_time) > (vim.g.usagetracker_inactivity_threshold_in_min * 60) then
+    if (os.time() - last_activity_timestamp) > (vim.g.usagetracker_inactivity_threshold_in_min * 60) then
         -- Stop the timer for the current buffer
         M.stop_timer()
         is_inactive = true
@@ -286,9 +294,9 @@ function M.setup(opts)
     set_default("verbose", 1)
 
     -- Initialize some of the variables
-    last_activity_time = os.time()
+    last_activity_timestamp = os.time()
     current_bufnr = vim.api.nvim_get_current_buf()
-    current_bufname = vim.api.nvim_buf_get_name(current_bufnr)
+    current_buffer_filepath = vim.api.nvim_buf_get_name(current_bufnr)
 
     -- Autocmd --
 

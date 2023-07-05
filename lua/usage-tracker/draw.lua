@@ -1,6 +1,10 @@
 local M = {}
 
+--- Draws (on the message bar) a vertical barchart for the aggregated daily data
 -- data looks like this: {{name: 2022-02-30, value: 235.67}, ...}
+---@param data table The data should have a name and a value field
+---@param max_chars integer The maximum number of characters to use for the bar
+---@param title string The title of the chart
 function M.vertical_barchart(data, max_chars, title)
     max_chars = max_chars or 80
     title = title or ""
@@ -29,6 +33,9 @@ end
 -- headers and field names should be in the same order while data is a list where each item is a
 -- dictionary with the keys being the field names
 -- Example: {{filename = "init.lua", keystrokes = 100, elapsed_time_sec = 10}, {filename = "plugin.lua", keystrokes = 50, elapsed_time_sec = 5}
+---@param headers string[]
+---@param data table
+---@param field_names string[]
 function M.print_table_format(headers, data, field_names)
     -- Calculate the maximum length needed for each column
     local maxLens = {}
