@@ -79,6 +79,12 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
         end
     end
 
+    -- It can happen that there are no data points because the user defined a filter which doesn't match any data
+    -- In this case we'll return an empty table
+    if utils.is_table_empty(result) then
+        return {}
+    end
+
     -- Populate the results with the missing days where there was no recorded events
 
     -- The biggest date is today

@@ -222,6 +222,10 @@ end
 
 function M.show_daily_stats(filetypes, project_name)
     local data = agg.create_daily_usage_aggregation(usage_data, filetypes, project_name)
+    if #data == 0 then
+        print("No data to show - try to use different filters")
+        return
+    end
 
     local barchart_data = {}
     for _, item in ipairs(data) do
@@ -293,10 +297,14 @@ function M.setup(opts)
     set_default("inactivity_check_freq_in_sec", 1)
     set_default("verbose", 1)
 
-    -- Initialize some of the variables
+    -- Initialize some of the "global" variables
     last_activity_timestamp = os.time()
     current_bufnr = vim.api.nvim_get_current_buf()
     current_buffer_filepath = vim.api.nvim_buf_get_name(current_bufnr)
+
+    -- Load existing data --
+
+    load_usage_data() -- Load the timers from the JSON file on plugin setup
 
     -- Autocmd --
 
@@ -349,10 +357,6 @@ function M.setup(opts)
         end,
         { nargs = '?' })
 
-
-    -- Load existing data --
-
-    load_usage_data() -- Load the timers from the JSON file on plugin setup
 
     -- Cleanup --
 

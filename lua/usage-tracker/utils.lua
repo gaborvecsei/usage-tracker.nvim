@@ -20,6 +20,13 @@ function M.list_contains(list, value)
     return false
 end
 
+--- Check if a table is empty as #table does not work with hash tables
+---@param table table
+---@return boolean
+function M.is_table_empty(table)
+    return next(table) == nil
+end
+
 --- Return a date object from a timestamp
 ---@param timestamp number
 ---@param keep_day_only boolean If true, the hour, minute and second will be set to 0
