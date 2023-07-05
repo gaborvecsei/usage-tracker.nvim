@@ -47,12 +47,15 @@ the timer is stopped automatically. Please see the configuration to set your per
 ### Commands
 
 - `UsageTrackerShowFiles`
-- `UsageTrackerShowProjects` - TODO
-- `UsageTrackerShowVisitLog`
+- `UsageTrackerShowVisitLog [filepath]`
+- `UsageTrackerShowDailyAggregation`
+- `UsageTrackerShowDailyAggregationByFiletypes [filetypes]`
+    - E.g.: `:UsageTrackerShowDailyAggregationByFiletypes lua markdown jsx`
+- `UsageTrackerShowDailyAggregationByProject [project_name]`
 
 #### Examples
 
-You can view the file-specific stats with **`:UsageTrackerShowFiles`**. Here is an example output:
+You can view the file-specific stats with **`:UsageTrackerShowFiles`**.
 
 ```
 Filepath                                             Keystrokes  Time (min)  Project
@@ -63,18 +66,9 @@ Filepath                                             Keystrokes  Time (min)  Pro
 /work/usage-tracker.nvim/lua/usage-tracker/asd       33          0.28        usage-tracker.nvim
 ```
 
-You can view the project-specific stats with **`:UsageTrackerShowProjects`**. Here is an example output (**not yet implemented**):
-
-```
-Project             Keystrokes  Time (min)
-------------------  ----------  ----------
-usage-tracker.nvim  16983       81.23
-                    200         1.56
-```
-
-You can view the file-specific event (entry, exit) with **`:UsageTrackerShowVisitLog <filepath>`**.
+You can view the file-specific event (entry, exit) with **`:UsageTrackerShowVisitLog [filepath]`**.
 Call the function when you are at the file you are interested in without any arguments or you can provide the filename as an argument.
-An event pair is only saved when more time elapsed than `usagetracker_event_wait_period_in_sec` seconds between the entry and the exit.
+An event pair is only saved when more time elapsed than `event_wait_period_in_sec` seconds between the entry and the exit.
 Here is an example output:
 
 ```
@@ -83,6 +77,16 @@ Enter                Exit                 Time (min)
 2023-06-27 13:47:27  Present
 2023-06-27 13:47:13  2023-06-27 13:47:17  0.06
 2023-06-27 13:44:48  2023-06-27 13:47:05  2.28
+```
+
+Use **:UsageTrackerShowDailyAggregationByFiletypes lua python markdown** to get daily usage stats
+
+```
+Daily usage in minutes                                                                                                                                                                                          
+----------------------
+2023-07-03 | ######################################## | 166.05
+2023-07-04 | ###################### | 94.16
+2023-07-05 | ################################################################################ | 333.1
 ```
 
 The data is stored in a json file called `usage_data.json` in the neovim config folder (`vim.fn.stdpath("config") .. "/usage_data.json"`)
