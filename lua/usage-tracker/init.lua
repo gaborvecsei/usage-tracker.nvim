@@ -16,6 +16,12 @@ local current_bufnr = nil
 local current_bufname = nil
 
 
+local function verbose_print(message)
+    if vim.g.usagetracker_verbose > 0 then
+        print("[usage-tracker.nvim]: " .. message)
+    end
+end
+
 --- Save the timers to the JSON file
 local function save_timers()
     local encodedTimers = vim.json.encode(usage_data)
@@ -96,6 +102,9 @@ function M.start_timer(bufnr)
     current_bufnr = bufnr
     current_bufname = filepath
 
+    verbose_print("Timer started for " ..
+        current_bufname .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+
     -- Save the updated time to the JSON file
     save_timers()
 end
@@ -120,6 +129,9 @@ function M.stop_timer()
         end
     end
 
+    verbose_print("Timer stopped for " ..
+        current_bufname .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+
     -- Save the updated time to the JSON file
     save_timers()
 end
@@ -131,7 +143,6 @@ function M.increase_keystroke_count(bufnr)
     if is_inactive then
         -- As there is activity we can start the timer again
         M.start_timer(bufnr)
-        is_inactive = false
     end
 
     if filepath == "" then
@@ -254,7 +265,7 @@ function M.show_visit_log(filepath)
     end
 
     if not usage_data.data[filepath] then
-        print("No visit log for this file (filepath: " .. filepath .. ")")
+        verbose_print("No visit log for this file (filepath: " .. filepath .. ")")
         return
     end
 
@@ -327,73 +338,41 @@ local function handle_inactivity()
         -- Stop the timer for the current buffer
         M.stop_timer()
         is_inactive = true
-        print("usage-tracker.nvim: Inactivity detected for buffer " .. current_bufnr)
+        verbose_print("Inactivity detected for buffer " ..
+            current_bufnr .. " at " .. os.date("%Y-%m-%d %H:%M:%S"))
     end
 end
 
 -- data looks like this: {{name: 2022-02-30, value: 235.67}, ...}
-local function draw_vertical_barchart(data)
+local function draw_vertical_barchart(data, max_chars, title)
+    max_chars = max_chars or 80
+    title = title or ""
+
     local max_value = 0
-    for _, item in ipairs(data) do
-        if item.value > max_value then
-            max_value = item.value
-        end
-    end
-
-    local max_value_length = string.len(tostring(max_value))
     local max_name_length = 0
+
+    print(title .. "\n" .. string.rep("-", #title) .. "\n")
+
     for _, item in ipairs(data) do
-        if string.len(item.name) > max_name_length then
-            max_name_length = string.len(item.name)
-        end
-    end
-
-    local function draw_bar(value, max_value)
-        local bar_length = math.floor((value / max_value) * 100)
-        local bar = ""
-        for i = 1, bar_length do
-            bar = bar .. "#"
-        end
-        return bar
-    end
-
-    local function draw_value(value, max_value)
-        local value_length = string.len(tostring(value))
-        local value_string = ""
-        for i = 1, max_value_length - value_length do
-            value_string = value_string .. " "
-        end
-        value_string = value_string .. value
-        return value_string
-    end
-
-    local function draw_name(name, max_name_length)
-        local name_length = string.len(name)
-        local name_string = name
-        for i = 1, max_name_length - name_length do
-            name_string = name_string .. " "
-        end
-        return name_string
-    end
-
-    local function draw_line(name, value, max_value)
-        local bar = draw_bar(value, max_value)
-        local value_string = draw_value(value, max_value)
-        local name_string = draw_name(name, max_name_length)
-        return name_string .. " | " .. bar .. " | " .. value_string
+        max_value = math.max(max_value, item.value)
+        max_name_length = math.max(max_name_length, #item.name)
     end
 
     for _, item in ipairs(data) do
-        print(draw_line(item.name, item.value, max_value))
+        local bar_length = math.floor((item.value / max_value) * max_chars)
+        local bar = string.rep("#", bar_length)
+        local value_string = string.format("%-" .. max_chars .. "s", tostring(item.value))
+        local name_string = string.format("%-" .. max_name_length .. "s", item.name)
+        local line = name_string .. " | " .. bar .. " | " .. value_string
+        print(line)
     end
 end
 
 --- This function should return the daily aggregates of the usage data
 --- Example for the daily aggregation:
 --- {{day: 2022-01-02, time_in_sec: 2345, keystrokes: 1234}, {day: 2022-01-03, time_in_sec: 2345, keystrokes: 1234}, ...}
--- @param freq Frequency of the aggregation, possible values: H (hourly), D (daily)
----@param filetype Filetype which we would like to include, if empty then we don't filter for any filetype and everything is included
----@param project_name Project name which we would like to include, if empty then we don't filter for any project and everything is included
+---@param filetype string Filetype which we would like to include, if empty then we don't filter for any filetype and everything is included
+---@param project_name string Project name which we would like to include, if empty then we don't filter for any project and everything is included
 function M.create_time_based_usage_aggregation(filetype, project_name)
     local result = {}
     for filepath, file_data in pairs(usage_data.data) do
@@ -404,8 +383,8 @@ function M.create_time_based_usage_aggregation(filetype, project_name)
                 local entry_date = os.date("%Y-%m-%d", row_data.entry)
                 local exit_date = os.date("%Y-%m-%d", row_data.exit)
                 if entry_date ~= exit_date then
-                    print(
-                        "usage-tracker.nvim: Entry and exit date are different, we'll use the entry date during the aggregation")
+                    verbose_print(
+                        "Entry and exit date are different, we'll use the entry date during the aggregation")
                 end
 
                 local time_in_sec = row_data.elapsed_time_sec
@@ -439,10 +418,6 @@ function M.create_time_based_usage_aggregation(filetype, project_name)
         return a.day < b.day
     end)
 
-    local headers = { "Day", "Time in min", "Keystrokes" }
-    local field_names = { "day", "time_in_min", "keystrokes" }
-    print_table_format(headers, result_table, field_names)
-
     -- draw barchart
     local barchart_data = {}
     for _, item in ipairs(result_table) do
@@ -451,8 +426,7 @@ function M.create_time_based_usage_aggregation(filetype, project_name)
             value = item.time_in_min
         }
     end
-    draw_vertical_barchart(barchart_data)
-
+    draw_vertical_barchart(barchart_data, 80, "Daily usage in minutes")
 end
 
 function M.setup(opts)
@@ -474,6 +448,7 @@ function M.setup(opts)
     set_default("event_wait_period_in_sec", 5)
     set_default("inactivity_threshold_in_min", 5)
     set_default("inactivity_check_freq_in_sec", 1)
+    set_default("verbose", 1)
 
     -- Initialize some of the variables
     last_activity_time = os.time()
@@ -529,6 +504,13 @@ function M.setup(opts)
     end)
 end
 
-M.setup({})
+M.setup({
+    keep_eventlog_days = 14,
+    cleanup_freq_days = 7,
+    event_wait_period_in_sec = 5,
+    inactivity_threshold_in_min = 5,
+    inactivity_check_freq_in_sec = 1,
+    verbose = 0
+})
 
 return M

@@ -12,30 +12,37 @@ Use your favourite package installer, there are no parameters at the moment. For
 Plug 'gaborvecsei/usage-tracker.nvim'
 ```
 
-And then
+### Configuration
 
 ```
--- default parameters
-require('usage-tracker').setup()
-
--- or if you would like to modify the parameters:
-require('usage-tracker').setup({...})
+require('usage-tracker').setup({
+    keep_eventlog_days = 14,
+    cleanup_freq_days = 7,
+    event_wait_period_in_sec = 5,
+    inactivity_threshold_in_min = 5,
+    inactivity_check_freq_in_sec = 5,
+    verbose = 0
+})
 ```
+
+| Variable                       | Description                                                                       | Type | Default |
+| ------------------------------ | --------------------------------------------------------------------------------- | ---- | ------- |
+| `keep_eventlog_days`           | How much days of data should we keep in the event log after a cleanup             | int  | 14      |
+| `cleanup_freq_days`            | Frequency of the cleanup job for the event logs                                   | int  | 7       |
+| `event_wait_period_in_sec`     | Event logs are only recorded if this much seconds are elapsed while in the buffer | int  | 5       |
+| `inactivity_threshold_in_min`  | If the cursor is not moving for this much time, the timer will be stopped         | int  | 5       |
+| `inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
+| `verbose`                      | Debug messages are printed if it's `>0`                                           | int  | 1       |
+
+(The variables are in the global space with the prefix `usagetracker_`)
 
 ## Usage
 
 A timer starts when you enter a buffer and stops when you leave the buffer (or quit nvim).
 Both normal and insert mode is counted.
 
-### Parameters
-
-| Variable                                    | Description                                                                       | Type | Default |
-|---------------------------------------------|-----------------------------------------------------------------------------------|------|---------|
-| `usagetracker_keep_eventlog_days`           | How much days of data should we keep in the event log after a cleanup             | int  | 14      |
-| `usagetracker_cleanup_freq_days`            | Frequency of the cleanup job for the event logs                                   | int  | 7       |
-| `usagetracker_event_wait_period_in_sec`     | Event logs are only recorded if this much seconds are elapsed while in the buffer | int  | 5       |
-| `usagetracker_inactivity_threshold_in_min`  | If the cursor is not moving for this much time, the timer will be stopped         | int  | 5       |
-| `usagetracker_inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
+There is inactivity detection, which means that if you don't have any keys pressed down (normal, insert mode) then
+the timer is stopped automatically. Please see the configuration to set your personal preference.
 
 ### Commands
 
@@ -73,9 +80,9 @@ Here is an example output:
 ```
 Enter                Exit                 Time (min)
 -------------------  -------------------  ----------
-2023-06-27 13:47:27  Present                        
-2023-06-27 13:47:13  2023-06-27 13:47:17  0.06      
-2023-06-27 13:44:48  2023-06-27 13:47:05  2.28      
+2023-06-27 13:47:27  Present
+2023-06-27 13:47:13  2023-06-27 13:47:17  0.06
+2023-06-27 13:44:48  2023-06-27 13:47:05  2.28
 ```
 
 The data is stored in a json file called `usage_data.json` in the neovim config folder (`vim.fn.stdpath("config") .. "/usage_data.json"`)
