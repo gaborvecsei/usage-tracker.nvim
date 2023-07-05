@@ -1,3 +1,7 @@
+local utils = require("usage-tracker.utils")
+local draw = require("usage-tracker.draw")
+local agg = require("usage-tracker.agg")
+
 local M = {}
 
 -- We'll use this object for storing the data
@@ -17,7 +21,7 @@ local current_bufname = nil
 
 
 --- Save the timers to the JSON file
-local function save_timers()
+local function save_usage_data()
     local encodedTimers = vim.json.encode(usage_data)
     local file = io.open(jsonFilePath, "w")
     if file then
@@ -27,7 +31,7 @@ local function save_timers()
 end
 
 --- Load the timers from the JSON file
-local function load_timers()
+local function load_usage_data()
     local file = io.open(jsonFilePath, "r")
     if file then
         local encodedTimers = file:read("*all")
@@ -35,20 +39,6 @@ local function load_timers()
         usage_data = vim.json.decode(encodedTimers)
     end
 end
-
-
---- Get the current git project name
--- If the file is not in a git project, return an empty string
-local function get_git_project_name()
-    local result = vim.fn.systemlist('git rev-parse --show-toplevel 2>/dev/null')
-    if vim.v.shell_error == 0 and result[1] ~= '' then
-        local folder_path = vim.trim(result[1])
-        return vim.fn.fnamemodify(folder_path, ":t")
-    else
-        return ''
-    end
-end
-
 
 --- Start the timer for the current buffer
 -- Happens when we enter to a buffer
@@ -59,11 +49,13 @@ function M.start_timer(bufnr)
         return
     end
 
-    local git_project_name = get_git_project_name()
+    local git_project_name = utils.get_git_project_name()
+    local buffer_filetype = utils.get_buffer_filetype(bufnr)
 
     if not usage_data.data[filepath] then
         usage_data.data[filepath] = {
             git_project_name = git_project_name,
+            filetype = buffer_filetype,
             -- Will be populated with entries like this: { entry = os.time(), exit = nil , elapsed_time_sec = 0, keystrokes = 0 }
             visit_log = {}
         }
@@ -85,8 +77,11 @@ function M.start_timer(bufnr)
     current_bufnr = bufnr
     current_bufname = filepath
 
+    utils.verbose_print("Timer started for " ..
+        current_bufname .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+
     -- Save the updated time to the JSON file
-    save_timers()
+    save_usage_data()
 end
 
 --- Stop the timer for the current buffer
@@ -109,18 +104,20 @@ function M.stop_timer()
         end
     end
 
+    utils.verbose_print("Timer stopped for " ..
+        current_bufname .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+
     -- Save the updated time to the JSON file
-    save_timers()
+    save_usage_data()
 end
 
 -- Count the keystrokes
-function M.increase_keystroke_count(bufnr)
+function M.activity_on_keystroke(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
     if is_inactive then
         -- As there is activity we can start the timer again
         M.start_timer(bufnr)
-        is_inactive = false
     end
 
     if filepath == "" then
@@ -140,80 +137,6 @@ function M.increase_keystroke_count(bufnr)
     current_bufname = filepath
 end
 
---- Prints the results in a table format to the messages
--- headers and field names should be in the same order while data is a list where each item is a
--- dictionary with the keys being the field names
--- Example: {{filename = "init.lua", keystrokes = 100, elapsed_time_sec = 10}, {filename = "plugin.lua", keystrokes = 50, elapsed_time_sec = 5}
-local function print_table_format(headers, data, field_names)
-    -- Calculate the maximum length needed for each column
-    local maxLens = {}
-    for i, header in ipairs(headers) do
-        local field_name = field_names[i]
-        maxLens[field_name] = #header
-    end
-    for _, rowData in ipairs(data) do
-        for _, field_name in ipairs(field_names) do
-            maxLens[field_name] = math.max(maxLens[field_name], #tostring(rowData[field_name]))
-        end
-    end
-
-    -- Print the table header
-    local headerFormat = ""
-    local separator = ""
-    for _, field_name in ipairs(field_names) do
-        headerFormat = headerFormat .. "%-" .. maxLens[field_name] .. "s  "
-        separator = separator .. string.rep("-", maxLens[field_name]) .. "  "
-    end
-
-    print(string.format(headerFormat, unpack(headers)))
-    print(separator)
-
-    for _, rowData in ipairs(data) do
-        local rowFormat = ""
-        for _, field_name in ipairs(field_names) do
-            rowFormat = rowFormat .. "%-" .. maxLens[field_name] .. "s  "
-        end
-        local rowValues = {}
-        for i, field_name in ipairs(field_names) do
-            rowValues[i] = rowData[field_name]
-        end
-        print(string.format(rowFormat, unpack(rowValues)))
-    end
-end
-
-
-local function lifetime_aggregation_of_visit_logs()
-    local result = {}
-
-    for filepath, data in pairs(usage_data.data) do
-        local total_keystrokes = 0
-        local total_elapsed_time_sec = 0
-
-        for _, visit_log in ipairs(data.visit_log) do
-            total_keystrokes = total_keystrokes + visit_log.keystrokes
-            total_elapsed_time_sec = total_elapsed_time_sec + visit_log.elapsed_time_sec
-        end
-
-        local total_elapsed_time_min = math.floor(total_elapsed_time_sec / 60 * 100) / 100
-        local total_elapsed_time_hour = math.floor(total_elapsed_time_min / 60 * 100) / 100
-
-        local result_item = {
-            name = vim.fn.fnamemodify(filepath, ":t"),
-            path = filepath,
-            git_project_name = data.git_project_name,
-            keystrokes = total_keystrokes,
-            elapsed_time_in_sec = total_elapsed_time_sec,
-            elapsed_time_in_min = total_elapsed_time_min,
-            elapsed_time_in_hour = total_elapsed_time_hour,
-        }
-        result[#result + 1] = result_item
-    end
-
-    return result
-end
-
-
-
 function M.show_usage_by_file()
     -- We would like to show up to date results, so we need to stop the timer in order to save the current result
     -- and start a new one immediately
@@ -221,7 +144,7 @@ function M.show_usage_by_file()
     M.start_timer(current_bufnr)
 
     -- Prepare results
-    local result = lifetime_aggregation_of_visit_logs()
+    local result = agg.lifetime_aggregation_of_visit_logs(usage_data)
 
     local headers = { "Filepath", "Keystrokes", "Time (min)", "Project" }
     local field_names = { "path", "keystrokes", "elapsed_time_in_min", "git_project_name" }
@@ -233,7 +156,7 @@ function M.show_usage_by_file()
     end)
 
     -- Print the table
-    print_table_format(headers, result, field_names)
+    draw.print_table_format(headers, result, field_names)
 end
 
 function M.show_visit_log(filepath)
@@ -286,7 +209,28 @@ function M.show_visit_log(filepath)
     end)
 
     -- Print the table
-    print_table_format(headers, visit_log_table, field_names)
+    draw.print_table_format(headers, visit_log_table, field_names)
+end
+
+function M.show_daily_stats(filetypes, project_name)
+    local data = agg.create_daily_usage_aggregation(usage_data, filetypes, project_name)
+
+    local barchart_data = {}
+    for _, item in ipairs(data) do
+        barchart_data[#barchart_data + 1] = {
+            name = item.day,
+            value = item.time_in_min
+        }
+    end
+
+    local title = "Daily usage in minutes"
+    if project_name ~= nil then
+        title = title .. " for project " .. project_name
+    end
+    if filetypes ~= nil then
+        title = title .. " for filetypes " .. table.concat(filetypes, ", ")
+    end
+    draw.vertical_barchart(barchart_data, 80, title)
 end
 
 -- Clean up the visit log by removing older than 2 week entries (where the entry is older than 2 weeks)
@@ -315,7 +259,8 @@ local function handle_inactivity()
         -- Stop the timer for the current buffer
         M.stop_timer()
         is_inactive = true
-        print("usage-tracker.nvim: Inactivity detected for buffer " .. current_bufnr)
+        utils.verbose_print("Inactivity detected for buffer " ..
+            current_bufnr .. " at " .. os.date("%Y-%m-%d %H:%M:%S"))
     end
 end
 
@@ -338,6 +283,7 @@ function M.setup(opts)
     set_default("event_wait_period_in_sec", 5)
     set_default("inactivity_threshold_in_min", 5)
     set_default("inactivity_check_freq_in_sec", 1)
+    set_default("verbose", 1)
 
     -- Initialize some of the variables
     last_activity_time = os.time()
@@ -353,22 +299,52 @@ function M.setup(opts)
             autocmd BufEnter * lua require('usage-tracker').start_timer(vim.api.nvim_get_current_buf())
             autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer()
 
-            autocmd TextChanged,TextChangedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
-            autocmd CursorMoved,CursorMovedI * lua require('usage-tracker').increase_keystroke_count(vim.api.nvim_get_current_buf())
+            autocmd TextChanged,TextChangedI * lua require('usage-tracker').activity_on_keystroke(vim.api.nvim_get_current_buf())
+            autocmd CursorMoved,CursorMovedI * lua require('usage-tracker').activity_on_keystroke(vim.api.nvim_get_current_buf())
           augroup END
     ]], false)
 
 
     -- Commands --
 
-    vim.api.nvim_command(
-        "command! UsageTrackerShowFiles lua require('usage-tracker').show_usage_by_file()")
-    vim.api.nvim_command(
-        "command! -nargs=? UsageTrackerShowVisitLog lua require('usage-tracker').show_visit_log(<f-args>)")
+    vim.api.nvim_create_user_command("UsageTrackerShowFiles",
+        function()
+            M.show_usage_by_file()
+        end,
+        {})
+
+    vim.api.nvim_create_user_command("UsageTrackerShowVisitLog",
+        function(cmd_opts)
+            M.show_visit_log(cmd_opts.fargs[1] or nil)
+        end,
+        { nargs = '?' })
+
+    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregation",
+        function()
+            M.show_daily_stats(nil, nil)
+        end,
+        {})
+
+    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregationByFiletypes",
+        function(cmd_opts)
+            local filetypes = cmd_opts.fargs
+            if #filetypes == 0 then
+                filetypes = nil
+            end
+            M.show_daily_stats(filetypes, nil)
+        end,
+        { nargs = '*' })
+
+    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregationByProject",
+        function(cmd_opts)
+            M.show_daily_stats(nil, cmd_opts.fargs[1] or nil)
+        end,
+        { nargs = '?' })
+
 
     -- Load existing data --
 
-    load_timers() -- Load the timers from the JSON file on plugin setup
+    load_usage_data() -- Load the timers from the JSON file on plugin setup
 
     -- Cleanup --
 
@@ -379,7 +355,7 @@ function M.setup(opts)
             clenup_visit_log(filepath, vim.g.usagetracker_keep_eventlog_days)
         end
         usage_data.last_cleanup = now
-        save_timers()
+        save_usage_data()
     end
 
     -- Check for inactivity every N seconds
@@ -389,6 +365,13 @@ function M.setup(opts)
     end)
 end
 
-M.setup({})
+M.setup({
+    keep_eventlog_days = 14,
+    cleanup_freq_days = 7,
+    event_wait_period_in_sec = 5,
+    inactivity_threshold_in_min = 5,
+    inactivity_check_freq_in_sec = 1,
+    verbose = 0
+})
 
 return M
