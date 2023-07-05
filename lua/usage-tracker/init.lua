@@ -218,7 +218,7 @@ function M.show_daily_stats(filetypes, project_name)
     local barchart_data = {}
     for _, item in ipairs(data) do
         barchart_data[#barchart_data + 1] = {
-            name = item.day,
+            name = item.day_str,
             value = item.time_in_min
         }
     end

@@ -46,9 +46,13 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
             local visit_log = file_data.visit_log
             for _, row_data in ipairs(visit_log) do
                 -- We'll use the entry time as the key for the result table
-                local entry_date = os.date("%Y-%m-%d", row_data.entry)
-                local exit_date = os.date("%Y-%m-%d", row_data.exit)
-                if entry_date ~= exit_date then
+                local entry_day_date = utils.timestamp_to_date(row_data.entry, true)
+                local entry_day_date_str = os.date("%Y-%m-%d", row_data.entry)
+
+                local exit_day_date = utils.timestamp_to_date(row_data.exit, true)
+                local exit_day_date_str = os.date("%Y-%m-%d", row_data.exit)
+
+                if entry_day_date_str ~= exit_day_date_str then
                     utils.verbose_print(
                         "Entry and exit date are different, we'll use the entry date during the aggregation")
                 end
@@ -56,24 +60,58 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
                 local time_in_sec = row_data.elapsed_time_sec
                 local keystrokes = row_data.keystrokes
 
-                if result[entry_date] == nil then
-                    result[entry_date] = {
+                if result[entry_day_date_str] == nil then
+                    result[entry_day_date_str] = {
                         time_in_sec = time_in_sec,
-                        keystrokes = keystrokes
+                        keystrokes = keystrokes,
+                        -- Let's store the day as a date object (as the key is a string)
+                        day = entry_day_date,
                     }
                 else
-                    result[entry_date].time_in_sec = result[entry_date].time_in_sec + time_in_sec
-                    result[entry_date].keystrokes = result[entry_date].keystrokes + keystrokes
+                    result[entry_day_date_str].time_in_sec = result[entry_day_date_str].time_in_sec + time_in_sec
+                    result[entry_day_date_str].keystrokes = result[entry_day_date_str].keystrokes + keystrokes
                 end
             end
         end
     end
 
+    -- Populate the results with the missing days where there was no recorded events
+
+    -- The biggest date is today
+    local biggest_timestamp = os.time()
+    -- Find the smallest date
+    local smallest_timestamp = nil
+    for _, day_data in pairs(result) do
+        local day_timestamp = utils.date_to_timestamp(day_data.day)
+        if smallest_timestamp == nil or day_timestamp < smallest_timestamp then
+            smallest_timestamp = day_timestamp
+        end
+    end
+
+    -- Populate the missing days
+    local current_day_timestamp = smallest_timestamp
+    while current_day_timestamp <= biggest_timestamp do
+        local current_day_date = utils.timestamp_to_date(current_day_timestamp, true)
+        local current_day_date_str = os.date("%Y-%m-%d", current_day_timestamp)
+
+        if result[current_day_date_str] == nil then
+            result[current_day_date_str] = {
+                time_in_sec = 0,
+                keystrokes = 0,
+                day = current_day_date,
+            }
+        end
+
+        current_day_timestamp = utils.increment_timestamp_by_days(current_day_timestamp, 1)
+    end
+
+
     -- Flatten the table and then order it based on the date
     local result_table = {}
-    for day_date, data in pairs(result) do
+    for day_date_str, data in pairs(result) do
         result_table[#result_table + 1] = {
-            day = day_date,
+            day_str = day_date_str,
+            day_timestamp = utils.date_to_timestamp(data.day),
             time_in_sec = data.time_in_sec,
             time_in_min = math.floor(data.time_in_sec / 60 * 100) / 100,
             keystrokes = data.keystrokes
@@ -81,7 +119,7 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
     end
 
     table.sort(result_table, function(a, b)
-        return a.day < b.day
+        return a.day_timestamp < b.day_timestamp
     end)
 
     return result_table
