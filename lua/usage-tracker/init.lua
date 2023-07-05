@@ -154,8 +154,8 @@ function M.show_usage_by_file()
     -- Prepare results
     local result = agg.lifetime_aggregation_of_visit_logs(usage_data)
 
-    local headers = { "Filepath", "Keystrokes", "Time (min)", "Project" }
-    local field_names = { "path", "keystrokes", "elapsed_time_in_min", "git_project_name" }
+    local headers = { "Filepath", "Keystrokes", "Time (min)", "Project", "Filetype" }
+    local field_names = { "path", "keystrokes", "elapsed_time_in_min", "git_project_name", "filetype" }
 
 
     -- Sort the result table based on elapsed_time_sec in descending order
