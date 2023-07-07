@@ -271,7 +271,7 @@ local function handle_inactivity()
         -- Stop the timer for the current buffer
         M.stop_timer()
         is_inactive = true
-        utils.verbose_print("Inactivity detected for buffer " ..
+        print("Inactivity detected for buffer " ..
             current_bufnr .. " at " .. os.date("%Y-%m-%d %H:%M:%S"))
     end
 end
@@ -293,7 +293,7 @@ function M.setup(opts)
     set_default("keep_eventlog_days", 14)
     set_default("cleanup_freq_days", 7)
     set_default("event_wait_period_in_sec", 5)
-    set_default("inactivity_threshold_in_min", 5)
+    set_default("inactivity_threshold_in_min", 2)
     set_default("inactivity_check_freq_in_sec", 1)
     set_default("verbose", 1)
 
