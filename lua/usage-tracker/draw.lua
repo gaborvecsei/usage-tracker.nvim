@@ -53,8 +53,13 @@ function M.print_table_format(headers, data, field_names)
     local headerFormat = ""
     local separator = ""
     for _, field_name in ipairs(field_names) do
-        headerFormat = headerFormat .. "%-" .. maxLens[field_name] .. "s  "
-        separator = separator .. string.rep("-", maxLens[field_name]) .. "  "
+        local l = maxLens[field_name]
+        if l > 99 then
+            -- string.format only works up to 99 characters
+            l = 99
+        end
+        headerFormat = headerFormat .. "%-" .. l .. "s  "
+        separator = separator .. string.rep("-", l) .. "  "
     end
 
     print(string.format(headerFormat, unpack(headers)))
@@ -63,7 +68,12 @@ function M.print_table_format(headers, data, field_names)
     for _, rowData in ipairs(data) do
         local rowFormat = ""
         for _, field_name in ipairs(field_names) do
-            rowFormat = rowFormat .. "%-" .. maxLens[field_name] .. "s  "
+            local l = maxLens[field_name]
+            if l > 99 then
+                -- string.format only works up to 99 characters
+                l = 99
+            end
+            rowFormat = rowFormat .. "%-" .. l .. "s  "
         end
         local rowValues = {}
         for i, field_name in ipairs(field_names) do
