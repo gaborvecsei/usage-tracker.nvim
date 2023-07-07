@@ -82,4 +82,32 @@ function M.get_buffer_filetype(bufnr)
     end
 end
 
+--- Parse a date string like this 2022-06-12 to a timestamp
+---@param str string The date string
+---@return number The timestamp
+function M.convert_string_to_date(str)
+    local year, month, day = str:match("(%d+)-(%d+)-(%d+)")
+
+    -- Check if the date components are valid
+    if not year or not month or not day then
+        print("Invalid date format. This is the acepted format: YYYY-MM-DD, like 2022-06-12")
+        return nil
+    end
+
+    -- Convert the string components to numbers
+    year = tonumber(year)
+    month = tonumber(month)
+    day = tonumber(day)
+
+    local parsed_date_timestamp = os.time({ year = year, month = month, day = day, hour = 0, min = 0, sec = 0 })
+
+    -- Check if the date is valid using os.time
+    if not parsed_date_timestamp then
+        print("Invalid date was provided")
+        return nil
+    end
+
+    return parsed_date_timestamp
+end
+
 return M

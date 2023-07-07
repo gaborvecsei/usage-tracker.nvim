@@ -145,7 +145,7 @@ function M.activity_on_keystroke(bufnr)
     current_buffer_filepath = filepath
 end
 
-function M.show_usage_by_file()
+function M.show_lifetime_usage_by_file()
     -- We would like to show up to date results, so we need to stop the timer in order to save the current result
     -- and start a new one immediately
     M.stop_timer()
@@ -242,7 +242,52 @@ function M.show_daily_stats(filetypes, project_name)
     if filetypes ~= nil then
         title = title .. " for filetypes " .. table.concat(filetypes, ", ")
     end
-    draw.vertical_barchart(barchart_data, 80, title)
+    draw.vertical_barchart(barchart_data, 60, title, true, 42)
+end
+
+function M.show_aggregation(key, start_date_str, end_date_str)
+    local valid_keys = {
+        filetype = true,
+        project = true,
+        filepath = true
+    }
+
+    if not key then
+        print("Please specify an aggregation key: filetype, project, or filepath")
+        return
+    end
+
+    if not valid_keys[key] then
+        print("Invalid aggregation key: " .. key .. ". Valid keys are: filetype, project, filepath")
+        return
+    end
+
+    local today = os.date("%Y-%m-%d")
+    local start_date_str = start_date_str or today
+    local start_date_timestamp = utils.convert_string_to_date(start_date_str)
+
+    local tomorrow = os.date("%Y-%m-%d", utils.increment_timestamp_by_days(os.time(), 1))
+    local end_date_str = end_date_str or tomorrow
+    local end_date_timestamp = utils.convert_string_to_date(end_date_str)
+
+    local data = agg.aggregate(usage_data, key, start_date_timestamp, end_date_timestamp)
+
+    if not data or next(data) == nil then
+        print("No data to show - try using different filters")
+        return
+    end
+
+    local barchart_data = {}
+    for _, item in ipairs(data) do
+        local value = math.floor(item.time_in_sec / 60 * 100) / 100
+        barchart_data[#barchart_data + 1] = {
+            name = item.name,
+            value = value
+        }
+    end
+
+    local title = "Total usage in minutes from " .. start_date_str .. " 00:00 to " .. end_date_str .. " 00:00"
+    draw.vertical_barchart(barchart_data, 60, title, true, 42)
 end
 
 -- Clean up the visit log by removing older than 2 week entries (where the entry is older than 2 weeks)
@@ -323,9 +368,9 @@ function M.setup(opts)
 
     -- Commands --
 
-    vim.api.nvim_create_user_command("UsageTrackerShowFiles",
+    vim.api.nvim_create_user_command("UsageTrackerShowFilesLifetime",
         function()
-            M.show_usage_by_file()
+            M.show_lifetime_usage_by_file()
         end,
         {})
 
@@ -356,6 +401,12 @@ function M.setup(opts)
             M.show_daily_stats(nil, cmd_opts.fargs[1] or nil)
         end,
         { nargs = '?' })
+
+    vim.api.nvim_create_user_command("UsageTrackerShowAgg",
+        function(cmd_opts)
+            M.show_aggregation(cmd_opts.fargs[1], cmd_opts.fargs[2] or nil, cmd_opts.fargs[3] or nil)
+        end,
+        { nargs = '*' })
 
 
     -- Cleanup --

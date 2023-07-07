@@ -46,16 +46,32 @@ the timer is stopped automatically. Please see the configuration to set your per
 
 ### Commands
 
-- `UsageTrackerShowFiles`
+- `UsageTrackerShowAgg <aggregation_type> [start_date] [end_date]`
+  - `aggregation_type` can be `filepath`, `project`, `filetype`
+  - `start_date` and `end_date` is in format `YYYY-MM-DD`, range for the aggregation
+- `UsageTrackerShowFilesLifetime`
 - `UsageTrackerShowVisitLog [filepath]`
 - `UsageTrackerShowDailyAggregation`
 - `UsageTrackerShowDailyAggregationByFiletypes [filetypes]`
-    - E.g.: `:UsageTrackerShowDailyAggregationByFiletypes lua markdown jsx`
+  - E.g.: `:UsageTrackerShowDailyAggregationByFiletypes lua markdown jsx`
 - `UsageTrackerShowDailyAggregationByProject [project_name]`
 
 #### Examples
 
-You can view the file-specific stats with **`:UsageTrackerShowFiles`**.
+Use **`:UsageTrackerShowAgg filetype 2023-07-07 2023-07-08`**
+
+```
+Total usage in minutes from 2023-07-07 00:00 to 2023-07-08 00:00
+----------------------------------------------------------------
+python          | ############################################################ | 155.33
+lua             | ##################################################### | 138.9
+html            | ####### | 20.35
+markdown        | ###### | 16.01
+vim             | # | 4.01
+javascriptreact |  | 0.15
+```
+
+You can view the file-specific stats with **`:UsageTrackerShowFilesLifetime`**.
 
 ```
 Filepath                                             Keystrokes  Time (min)  Project
@@ -63,7 +79,6 @@ Filepath                                             Keystrokes  Time (min)  Pro
 /work/usage-tracker.nvim/lua/usage-tracker/init.lua  9876        69.61       usage-tracker.nvim
 /work/usage-tracker.nvim/README.md                   3146        12.35       usage-tracker.nvim
 /.config/nvim/init.vim                               200         1.56
-/work/usage-tracker.nvim/lua/usage-tracker/asd       33          0.28        usage-tracker.nvim
 ```
 
 You can view the file-specific event (entry, exit) with **`:UsageTrackerShowVisitLog [filepath]`**.
@@ -82,7 +97,7 @@ Enter                Exit                 Time (min)
 Use **:UsageTrackerShowDailyAggregationByFiletypes lua python markdown** to get daily usage stats
 
 ```
-Daily usage in minutes                                                                                                                                                                                          
+Daily usage in minutes
 ----------------------
 2023-07-03 | ######################################## | 166.05
 2023-07-04 | ###################### | 94.16

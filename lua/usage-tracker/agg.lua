@@ -135,4 +135,64 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
     return result_table
 end
 
+--- Aggregate data by filetype in a certain date range
+-- Example result: {{filetype: "lua", keystrokes: 1234, time_in_sec: 1234},
+--                  {filetype: "python", keystrokes: 1234, time_in_sec: 1234},
+--                  ...}
+---@param usage_data table
+---@param key string The basis of the aggregation. Can be "filetype" or "project" or "filepath"
+---@param start_date_timestamp number
+---@param end_date_timestamp number
+---@return table
+function M.aggregate(usage_data, key, start_date_timestamp, end_date_timestamp)
+    local result = {}
+    for filepath, file_data in pairs(usage_data.data) do
+        local visit_log = file_data.visit_log
+        for _, row_data in ipairs(visit_log) do
+            if row_data.entry >= start_date_timestamp and row_data.entry <= end_date_timestamp then
+                local agg_field_value = nil
+                if key == "filetype" then
+                    agg_field_value = file_data.filetype
+                elseif key == "project" then
+                    agg_field_value = file_data.git_project_name
+                elseif key == "filepath" then
+                    agg_field_value = filepath
+                else
+                    error("Unknown key: " .. key)
+                    return {}
+                end
+
+                if agg_field_value == "" then
+                    agg_field_value = "Unknown"
+                end
+
+                local time_in_sec = row_data.elapsed_time_sec
+                local keystrokes = row_data.keystrokes
+
+                if result[agg_field_value] == nil then
+                    result[agg_field_value] = {
+                        time_in_sec = time_in_sec,
+                        keystrokes = keystrokes,
+                    }
+                else
+                    result[agg_field_value].time_in_sec = result[agg_field_value].time_in_sec + time_in_sec
+                    result[agg_field_value].keystrokes = result[agg_field_value].keystrokes + keystrokes
+                end
+            end
+        end
+    end
+
+    -- Flatten the table and then order it based on the elapsed_time_sec
+    local result_table = {}
+    for agg_field_value, data in pairs(result) do
+        result_table[#result_table + 1] = {
+            name = agg_field_value,
+            time_in_sec = data.time_in_sec,
+            keystrokes = data.keystrokes
+        }
+    end
+
+    return result_table
+end
+
 return M

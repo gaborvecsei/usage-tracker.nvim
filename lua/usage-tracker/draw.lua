@@ -5,9 +5,19 @@ local M = {}
 ---@param data table The data should have a name and a value field
 ---@param max_chars integer The maximum number of characters to use for the bar
 ---@param title string The title of the chart
-function M.vertical_barchart(data, max_chars, title)
-    max_chars = max_chars or 80
+---@param sort boolean Whether to sort the data by value
+---@param mnl integer The maximum number of characters to use for the name (y axis)
+function M.vertical_barchart(data, max_chars, title, sort, mnl)
+    max_chars = max_chars or 60
     title = title or ""
+    sort = sort or false
+    mnl = mnl or 30
+
+    if sort then
+        table.sort(data, function(a, b)
+            return a.value > b.value
+        end)
+    end
 
     local max_value = 0
     local max_name_length = 0
@@ -16,6 +26,9 @@ function M.vertical_barchart(data, max_chars, title)
 
     for _, item in ipairs(data) do
         max_value = math.max(max_value, item.value)
+        if #item.name > mnl then
+            item.name = "..." .. string.sub(item.name, -1 * (mnl - 3))
+        end
         max_name_length = math.max(max_name_length, #item.name)
     end
 
