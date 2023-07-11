@@ -242,7 +242,7 @@ function M.show_daily_stats(filetypes, project_name)
     if filetypes ~= nil then
         title = title .. " for filetypes " .. table.concat(filetypes, ", ")
     end
-    draw.vertical_barchart(barchart_data, 60, title, true, 42)
+    draw.vertical_barchart(barchart_data, 60, title, false, 42)
 end
 
 function M.show_aggregation(key, start_date_str, end_date_str)
