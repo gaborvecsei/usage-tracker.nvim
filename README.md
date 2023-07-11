@@ -1,6 +1,6 @@
 # Usage-Tracker.nvim
 
-> The plugin is [WIP], and you can expect breaking changes in the future.
+> The plugin is in ⚠️a active development, and you can expect breaking changes in the future.
 
 Simple lua plugin with which you can track how much time do you spend on the individual files, projects.
 
