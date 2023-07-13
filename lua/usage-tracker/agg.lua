@@ -58,7 +58,8 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
 
                 if entry_day_date_str ~= exit_day_date_str then
                     utils.verbose_print(
-                        "Entry and exit date are different, we'll use the entry date during the aggregation")
+                        "Entry and exit date are different, we'll use the entry date during the aggregation. Entry: " ..
+                        entry_day_date_str .. ", exit: " .. exit_day_date_str)
                 end
 
                 local time_in_sec = row_data.elapsed_time_sec

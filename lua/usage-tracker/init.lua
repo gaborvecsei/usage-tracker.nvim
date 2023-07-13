@@ -1,3 +1,5 @@
+local curl = require('plenary.curl')
+
 local utils = require("usage-tracker.utils")
 local draw = require("usage-tracker.draw")
 local agg = require("usage-tracker.agg")
@@ -45,6 +47,31 @@ local function load_usage_data()
         local encodedTimers = file:read("*all")
         file:close()
         usage_data = vim.json.decode(encodedTimers)
+    end
+end
+
+-- Send data to the restapi
+local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, keystrokes, filetype, git_project_name)
+    local json = {
+        entry = entry_timestamp,
+        exit = exit_timestamp,
+        keystrokes = keystrokes,
+        filepath = filepath,
+        filetype = filetype,
+        projectname = git_project_name,
+    }
+
+    local telemetry_endpoint = vim.g.usagetracker_telemetry_endpoint
+    if telemetry_endpoint and telemetry_endpoint ~= "" then
+        local res = curl.post(telemetry_endpoint, {
+            body = vim.json.encode(json),
+            headers = {
+                content_type = "application/json",
+            },
+        })
+        if res.status ~= 200 then
+            print("Error sending data to the restapi via the endpoint " .. telemetry_endpoint)
+        end
     end
 end
 
@@ -106,6 +133,14 @@ function M.stop_timer()
             local last_entry = visit_log[#visit_log]
             last_entry.exit = os.time()
             last_entry.elapsed_time_sec = last_entry.exit - last_entry.entry
+
+            -- Send data to the restapi
+            send_data_to_restapi(filepath,
+                last_entry.entry,
+                last_entry.exit,
+                last_entry.keystrokes,
+                usage_data.data[filepath].filetype,
+                usage_data.data[filepath].git_project_name)
         else
             -- Remove the last entry event
             visit_log[#visit_log] = nil
@@ -189,10 +224,17 @@ function M.show_visit_log(filepath)
     -- Convert the visit log to a table
     local visit_log_table = {}
     for i, row in ipairs(visit_log) do
-        if i < #visit_log then
+        if i <= #visit_log then
             local enter = ts_to_date(row.entry)
-            local exit = ts_to_date(row.exit)
-            local elapsed_time_in_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
+            local exit = nil
+            local elapsed_time_in_min = nil
+            if row.exit == nil then
+                exit = "Present"
+                elapsed_time_in_min = math.floor((os.time() - row.entry) / 60 * 100) / 100
+            else
+                exit = ts_to_date(row.exit)
+                elapsed_time_in_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
+            end
             visit_log_table[#visit_log_table + 1] = {
                 enter = enter,
                 exit = exit,
@@ -200,15 +242,6 @@ function M.show_visit_log(filepath)
                 keystrokes = row.keystrokes
             }
         end
-    end
-    -- Add the last entry manually as there is no end to it. Only if we are at this file currently
-    if vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf()) == filepath then
-        visit_log_table[#visit_log_table + 1] = {
-            enter = ts_to_date(visit_log[#visit_log].entry),
-            exit = "Present",
-            elapsed_time_in_min = "",
-            keystrokes = visit_log[#visit_log].keystrokes
-        }
     end
 
     -- Sort the visit log based on enter time in descending order
@@ -341,6 +374,7 @@ function M.setup(opts)
     set_default("inactivity_threshold_in_min", 2)
     set_default("inactivity_check_freq_in_sec", 1)
     set_default("verbose", 1)
+    set_default("telemetry_endpoint", "http://localhost:8000/visit")
 
     -- Initialize some of the "global" variables
     last_activity_timestamp = os.time()
@@ -423,9 +457,12 @@ function M.setup(opts)
 
     -- Check for inactivity every N seconds
     local timer = vim.loop.new_timer()
-    timer:start(0, vim.g.usagetracker_inactivity_check_freq_in_sec * 1000, function()
-        handle_inactivity()
-    end)
+    timer:start(0,
+        vim.g.usagetracker_inactivity_check_freq_in_sec * 1000,
+        vim.schedule_wrap(function()
+            handle_inactivity()
+        end)
+    )
 end
 
 M.setup({
@@ -434,7 +471,8 @@ M.setup({
     event_wait_period_in_sec = 5,
     inactivity_threshold_in_min = 5,
     inactivity_check_freq_in_sec = 1,
-    verbose = 0
+    verbose = 0,
+    telemetry_endpoint = "http://localhost:8000/visit"
 })
 
 return M
