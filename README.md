@@ -8,20 +8,21 @@ Simple lua plugin with which you can track how much time do you spend on the ind
 
 Use your favourite package installer, there are no parameters at the moment. For example:
 
-```
+```vimscript
 Plug 'gaborvecsei/usage-tracker.nvim'
 ```
 
 ### Configuration
 
-```
+```lua
 require('usage-tracker').setup({
     keep_eventlog_days = 14,
     cleanup_freq_days = 7,
     event_wait_period_in_sec = 5,
     inactivity_threshold_in_min = 5,
     inactivity_check_freq_in_sec = 5,
-    verbose = 0
+    verbose = 0,
+    telemetry_endpoint = "http://localhost:8000/visit"
 })
 ```
 
@@ -33,6 +34,7 @@ require('usage-tracker').setup({
 | `inactivity_threshold_in_min`  | If the cursor is not moving for this much time, the timer will be stopped         | int  | 5       |
 | `inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
 | `verbose`                      | Debug messages are printed if it's `>0`                                           | int  | 1       |
+| `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | nil     |
 
 (The variables are in the global space with the prefix `usagetracker_`)
 
@@ -55,6 +57,19 @@ the timer is stopped automatically. Please see the configuration to set your per
 - `UsageTrackerShowDailyAggregationByFiletypes [filetypes]`
   - E.g.: `:UsageTrackerShowDailyAggregationByFiletypes lua markdown jsx`
 - `UsageTrackerShowDailyAggregationByProject [project_name]`
+
+### Telemetry (separately storing data in a DB)
+
+Usage data saved locally (in the json file) is cleaned up after the set days,
+but if you'd like to keep it longer in a separate SqliteDB, then this is why this feature exists.
+
+You can use it for custom analysis, just make sure the endpoint is live.
+
+```
+docker-compose up -d
+```
+
+Then you can (and you should) define the `telemetry_endpoint="http://<HOST>:<PORT>"` parameter in the `setup({...})`.
 
 #### Examples
 
