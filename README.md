@@ -67,11 +67,13 @@ You can use it for custom analysis, just make sure the endpoint is live.
 
 #### How to enable it
 
-```shellscript
+```console
 $ git clone https://github.com/gaborvecsei/usage-tracker.nvim.git
 $ cd usage-tracker.nvim/telemetry_api
 $ docker-compose up -d
 ```
+
+If you'd like to use a different volume mount then change it in the `docker-compose.yml` file
 
 Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not changed a thing the endpoint is `http://localhost:8000/visit`)
 parameter in the `setup({..., telemetry_endpoint="http://<HOST>:<PORT>"})`.
