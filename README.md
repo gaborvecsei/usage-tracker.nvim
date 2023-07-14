@@ -1,6 +1,6 @@
 # Usage-Tracker.nvim
 
-> The plugin is in ⚠️a active development, and you can expect breaking changes in the future.
+> The plugin is in ⚠️aactive development, and you can expect breaking changes in the future.
 
 Simple lua plugin with which you can track how much time do you spend on the individual files, projects.
 
@@ -8,7 +8,7 @@ Simple lua plugin with which you can track how much time do you spend on the ind
 
 Use your favourite package installer, there are no parameters at the moment. For example:
 
-```vimscript
+```lua
 Plug 'gaborvecsei/usage-tracker.nvim'
 ```
 
@@ -22,7 +22,7 @@ require('usage-tracker').setup({
     inactivity_threshold_in_min = 5,
     inactivity_check_freq_in_sec = 5,
     verbose = 0,
-    telemetry_endpoint = "http://localhost:8000/visit"
+    telemetry_endpoint = "" -- you'll need to start the restapi for this feature
 })
 ```
 
@@ -34,7 +34,7 @@ require('usage-tracker').setup({
 | `inactivity_threshold_in_min`  | If the cursor is not moving for this much time, the timer will be stopped         | int  | 5       |
 | `inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
 | `verbose`                      | Debug messages are printed if it's `>0`                                           | int  | 1       |
-| `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | nil     |
+| `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | ""      |
 
 (The variables are in the global space with the prefix `usagetracker_`)
 
@@ -65,11 +65,16 @@ but if you'd like to keep it longer in a separate SqliteDB, then this is why thi
 
 You can use it for custom analysis, just make sure the endpoint is live.
 
-```
-docker-compose up -d
+#### How to enable it
+
+```shellscript
+$ git clone https://github.com/gaborvecsei/usage-tracker.nvim.git
+$ cd usage-tracker.nvim/telemetry_api
+$ docker-compose up -d
 ```
 
-Then you can (and you should) define the `telemetry_endpoint="http://<HOST>:<PORT>"` parameter in the `setup({...})`.
+Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not changed a thing the endpoint is `http://localhost:8000/visit`)
+parameter in the `setup({..., telemetry_endpoint="http://<HOST>:<PORT>"})`.
 
 #### Examples
 

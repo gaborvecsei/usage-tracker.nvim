@@ -373,8 +373,8 @@ function M.setup(opts)
     set_default("event_wait_period_in_sec", 5)
     set_default("inactivity_threshold_in_min", 2)
     set_default("inactivity_check_freq_in_sec", 1)
-    set_default("verbose", 1)
-    set_default("telemetry_endpoint", "http://localhost:8000/visit")
+    set_default("verbose", 0)
+    set_default("telemetry_endpoint", "")
 
     -- Initialize some of the "global" variables
     last_activity_timestamp = os.time()
@@ -472,7 +472,7 @@ M.setup({
     inactivity_threshold_in_min = 5,
     inactivity_check_freq_in_sec = 1,
     verbose = 0,
-    telemetry_endpoint = "http://localhost:8000/visit"
+    telemetry_endpoint = ""
 })
 
 return M
