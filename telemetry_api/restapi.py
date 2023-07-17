@@ -52,6 +52,10 @@ class FileInfo(BaseModel):
     projectname: Optional[str]
     lastmodification: int
 
+@app.get("/status")
+async def status():
+    return {"status": "ok", "alive": True}
+
 
 @app.post("/visit")
 async def create_visit(visit: Visit):

@@ -75,7 +75,7 @@ $ docker-compose up -d
 
 If you'd like to use a different volume mount then change it in the `docker-compose.yml` file
 
-Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not changed a thing the endpoint is `http://localhost:8000/visit`)
+Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not changed a thing the endpoint is `http://localhost:8000`)
 parameter in the `setup({..., telemetry_endpoint="http://<HOST>:<PORT>"})`.
 
 #### Examples

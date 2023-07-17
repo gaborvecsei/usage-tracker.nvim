@@ -63,14 +63,15 @@ local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, k
 
     local telemetry_endpoint = vim.g.usagetracker_telemetry_endpoint
     if telemetry_endpoint and telemetry_endpoint ~= "" then
-        local res = curl.post(telemetry_endpoint, {
+        local res = curl.post(telemetry_endpoint .. "/visit", {
+            timeout = 1000,
             body = vim.json.encode(json),
             headers = {
                 content_type = "application/json",
             },
         })
         if res.status ~= 200 then
-            print("Error sending data to the restapi via the endpoint " .. telemetry_endpoint)
+            print("Error sending data to the restapi via the endpoint " .. telemetry_endpoint .. "/visit")
         end
     end
 end
@@ -133,6 +134,22 @@ function M.stop_timer()
             local last_entry = visit_log[#visit_log]
             last_entry.exit = os.time()
             last_entry.elapsed_time_sec = last_entry.exit - last_entry.entry
+
+            -- Error "detection" with heuristic
+            -- We need to get rid of entries where the elapsed time is more than 5 hours
+            if last_entry.elapsed_time_sec > 5 * 60 * 60 then
+                print("UsageTracker: Error detected in the elapsed time for " ..
+                    filepath ..
+                    " (too much), elapsed time: " .. last_entry.elapsed_time_sec .. ". We'll limit this for 1 hour.")
+                -- Request y/n input from user if we should keep it or not
+                local keep = vim.fn.input("Keep it anyways? (y/n): ")
+                if keep == "y" then
+                    print("UsageTracker: Keeping the elapsed time for " .. filepath .. " anyways.")
+                else
+                    print("UsageTracker: Setting elapsed time for 1 hour " .. filepath .. ".")
+                    last_entry.elapsed_time_sec = 1 * 60 * 60
+                end
+            end
 
             -- Send data to the restapi
             send_data_to_restapi(filepath,
@@ -463,16 +480,21 @@ function M.setup(opts)
             handle_inactivity()
         end)
     )
-end
 
-M.setup({
-    keep_eventlog_days = 14,
-    cleanup_freq_days = 7,
-    event_wait_period_in_sec = 5,
-    inactivity_threshold_in_min = 5,
-    inactivity_check_freq_in_sec = 1,
-    verbose = 0,
-    telemetry_endpoint = ""
-})
+    -- Telemetry check --
+    -- Tell the user that the service is not running if there is a set endpoint
+    if vim.g.usagetracker_telemetry_endpoint and vim.g.usagetracker_telemetry_endpoint ~= "" then
+        local success, res = pcall(function()
+            return curl.get(vim.g.usagetracker_telemetry_endpoint .. "/status", {
+                timeout = 1000 })
+        end)
+        if not success or res.status ~= 200 then
+            print("UsageTracker: Telemetry service is enabled but not running: " ..
+                vim.g.usagetracker_telemetry_endpoint .. "/status")
+            print("UsageTracker: Turning off telemetry service...")
+            vim.g.usagetracker_telemetry_endpoint = nil
+        end
+    end
+end
 
 return M
