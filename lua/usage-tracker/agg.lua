@@ -45,7 +45,7 @@ end
 ---@return table
 function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
     local result = {}
-    for _, file_data in pairs(usage_data.data) do
+    for filepath, file_data in pairs(usage_data.data) do
         if (filetypes == nil or utils.list_contains(filetypes, file_data.filetype)) and (project_name == nil or project_name == file_data.git_project_name) then
             local visit_log = file_data.visit_log
             for _, row_data in ipairs(visit_log) do
@@ -59,7 +59,7 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
                 if entry_day_date_str ~= exit_day_date_str then
                     utils.verbose_print(
                         "Entry and exit date are different, we'll use the entry date during the aggregation. Entry: " ..
-                        entry_day_date_str .. ", exit: " .. exit_day_date_str)
+                        entry_day_date_str .. ", exit: " .. exit_day_date_str .. ", filepath: " .. filepath)
                 end
 
                 local time_in_sec = row_data.elapsed_time_sec

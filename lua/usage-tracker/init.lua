@@ -121,35 +121,31 @@ function M.start_timer(bufnr)
 end
 
 --- Stop the timer for the current buffer
--- Happens when we leave a buffer
-function M.stop_timer()
+--- Happens when we leave a buffer
+---@param use_last_activity boolean: if true, then the last activity timestamp will be used as the exit timestamp not the current time (os.time())
+---Used when inactivity was detected, as we don't want to log the inactive time
+---@return nil
+function M.stop_timer(use_last_activity)
+    use_last_activity = use_last_activity or false
+
     local filepath = current_buffer_filepath
+
+    local current_time
+    if use_last_activity then
+        current_time = last_activity_timestamp
+    else
+        current_time = os.time()
+    end
 
     if usage_data.data[filepath] then
         -- Record an exit event for the last entry event (as there cannot be an exit without an entry)
         -- and calculate the elapsed time
         -- Save entry and exit event only if the elapsed time between them is more than N seconds
         local visit_log = usage_data.data[filepath].visit_log
-        if (#visit_log > 0) and ((os.time() - visit_log[#visit_log].entry) > vim.g.usagetracker_event_wait_period_in_sec) then
+        if (#visit_log > 0) and ((current_time - visit_log[#visit_log].entry) > vim.g.usagetracker_event_wait_period_in_sec) then
             local last_entry = visit_log[#visit_log]
-            last_entry.exit = os.time()
+            last_entry.exit = current_time
             last_entry.elapsed_time_sec = last_entry.exit - last_entry.entry
-
-            -- Error "detection" with heuristic
-            -- We need to get rid of entries where the elapsed time is more than 5 hours
-            if last_entry.elapsed_time_sec > 5 * 60 * 60 then
-                print("UsageTracker: Error detected in the elapsed time for " ..
-                    filepath ..
-                    " (too much), elapsed time: " .. last_entry.elapsed_time_sec .. ". We'll limit this for 1 hour.")
-                -- Request y/n input from user if we should keep it or not
-                local keep = vim.fn.input("Keep it anyways? (y/n): ")
-                if keep == "y" then
-                    print("UsageTracker: Keeping the elapsed time for " .. filepath .. " anyways.")
-                else
-                    print("UsageTracker: Setting elapsed time for 1 hour " .. filepath .. ".")
-                    last_entry.elapsed_time_sec = 1 * 60 * 60
-                end
-            end
 
             -- Send data to the restapi
             send_data_to_restapi(filepath,
@@ -165,7 +161,7 @@ function M.stop_timer()
     end
 
     utils.verbose_print("Timer stopped for " ..
-        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", current_time))
 
     -- Save the updated time to the JSON file
     save_usage_data()
@@ -364,10 +360,10 @@ local function handle_inactivity()
 
     if (os.time() - last_activity_timestamp) > (vim.g.usagetracker_inactivity_threshold_in_min * 60) then
         -- Stop the timer for the current buffer
-        M.stop_timer()
+        M.stop_timer(true)
         is_inactive = true
         print("Inactivity detected for buffer " ..
-            current_bufnr .. " at " .. os.date("%Y-%m-%d %H:%M:%S"))
+            current_bufnr .. " at " .. os.date("%Y-%m-%d %H:%M:%S") .. ", last active at " .. last_activity_timestamp)
     end
 end
 
