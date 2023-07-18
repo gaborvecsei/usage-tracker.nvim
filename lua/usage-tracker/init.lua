@@ -73,6 +73,7 @@ local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, k
         if res.status ~= 200 then
             print("Error sending data to the restapi via the endpoint " .. telemetry_endpoint .. "/visit")
         end
+        utils.verbose_print("Data sent to the restapi via the telemetry endpoint for file " .. filepath)
     end
 end
 
@@ -82,6 +83,7 @@ function M.start_timer(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
     if filepath == "" then
+        utils.verbose_print("Filename is '' so we are not logging this buffer")
         return
     end
 
@@ -196,7 +198,8 @@ end
 function M.show_lifetime_usage_by_file()
     -- We would like to show up to date results, so we need to stop the timer in order to save the current result
     -- and start a new one immediately
-    M.stop_timer()
+    utils.verbose_print("Stopping from lifetime usage aggregation")
+    M.stop_timer(false)
     M.start_timer(current_bufnr)
 
     -- Prepare results
@@ -360,6 +363,7 @@ local function handle_inactivity()
 
     if (os.time() - last_activity_timestamp) > (vim.g.usagetracker_inactivity_threshold_in_min * 60) then
         -- Stop the timer for the current buffer
+        utils.verbose_print("Stopping due to inactivity")
         M.stop_timer(true)
         is_inactive = true
         print("Inactivity detected for buffer " ..
@@ -405,7 +409,7 @@ function M.setup(opts)
             autocmd!
 
             autocmd BufEnter * lua require('usage-tracker').start_timer(vim.api.nvim_get_current_buf())
-            autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer()
+            autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer(false)
 
             autocmd TextChanged,TextChangedI * lua require('usage-tracker').activity_on_keystroke(vim.api.nvim_get_current_buf())
             autocmd CursorMoved,CursorMovedI * lua require('usage-tracker').activity_on_keystroke(vim.api.nvim_get_current_buf())
