@@ -1,10 +1,11 @@
 local curl = require('plenary.curl')
-
 local utils = require("usage-tracker.utils")
 local draw = require("usage-tracker.draw")
 local agg = require("usage-tracker.agg")
 
 local M = {}
+
+-- Global variables
 
 -- We'll use this object for storing the data
 ---@type table
@@ -159,6 +160,8 @@ function M.stop_timer(use_last_activity)
                 usage_data.data[filepath].filetype,
                 usage_data.data[filepath].git_project_name)
         else
+            utils.verbose_print("Not saving the last entry event for " ..
+            filepath .. " as the elapsed time is less than " .. vim.g.usagetracker_event_wait_period_in_sec .. " seconds")
             -- Remove the last entry event
             visit_log[#visit_log] = nil
         end
