@@ -82,6 +82,13 @@ end
 function M.start_timer(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
+    -- Update the globals
+    is_inactive = false
+    last_activity_timestamp = os.time()
+    current_bufnr = bufnr
+    current_buffer_filepath = filepath
+
+    -- Do not log an "empty" buffer
     if filepath == "" then
         utils.verbose_print("Filename is '' so we are not logging this buffer")
         return
@@ -110,13 +117,8 @@ function M.start_timer(bufnr)
         elapsed_time_sec = 0
     }
 
-    is_inactive = false
-    last_activity_timestamp = os.time()
-    current_bufnr = bufnr
-    current_buffer_filepath = filepath
-
     utils.verbose_print("Timer started for " ..
-        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", os.time()))
+        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at " .. os.date("%c", os.time()))
 
     -- Save the updated time to the JSON file
     save_usage_data()
@@ -163,7 +165,7 @@ function M.stop_timer(use_last_activity)
     end
 
     utils.verbose_print("Timer stopped for " ..
-        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at" .. os.date("%c", current_time))
+        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at " .. os.date("%c", current_time))
 
     -- Save the updated time to the JSON file
     save_usage_data()
