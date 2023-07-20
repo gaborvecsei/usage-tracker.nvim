@@ -1,10 +1,12 @@
 # Usage-Tracker.nvim
 
-> The plugin is in ⚠️aactive development, and you can expect breaking changes in the future.
+> The plugin is in ⚠️ active development, and you can expect breaking changes in the future.
 
-Simple lua plugin with which you can track how much time do you spend on the individual files, projects.
+NeoVim plugin with which you can track your usage.
+The examples speak for themselves.
+Logs are stored locally, so no sensitive data leaves your machine.
 
-## Install
+# Install
 
 Use your favourite package installer, there are no parameters at the moment. For example:
 
@@ -12,7 +14,7 @@ Use your favourite package installer, there are no parameters at the moment. For
 Plug 'gaborvecsei/usage-tracker.nvim'
 ```
 
-### Configuration
+# Setup
 
 ```lua
 require('usage-tracker').setup({
@@ -34,11 +36,11 @@ require('usage-tracker').setup({
 | `inactivity_threshold_in_min`  | If the cursor is not moving for this much time, the timer will be stopped         | int  | 5       |
 | `inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
 | `verbose`                      | Debug messages are printed if it's `>0`                                           | int  | 1       |
-| `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | ""      |
+| `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | ''      |
 
 (The variables are in the global space with the prefix `usagetracker_`)
 
-## Usage
+# Usage
 
 A timer starts when you enter a buffer and stops when you leave the buffer (or quit nvim).
 Both normal and insert mode is counted.
@@ -46,26 +48,29 @@ Both normal and insert mode is counted.
 There is inactivity detection, which means that if you don't have any keys pressed down (normal, insert mode) then
 the timer is stopped automatically. Please see the configuration to set your personal preference.
 
-### Commands
+## Commands
 
 - `UsageTrackerShowAgg <aggregation_type> [start_date] [end_date]`
   - `aggregation_type` can be `filepath`, `project`, `filetype`
   - `start_date` and `end_date` is in format `YYYY-MM-DD`, range for the aggregation
 - `UsageTrackerShowFilesLifetime`
 - `UsageTrackerShowVisitLog [filepath]`
+  - If no `filepath` is defined then all the logs are visible
 - `UsageTrackerShowDailyAggregation`
 - `UsageTrackerShowDailyAggregationByFiletypes [filetypes]`
   - E.g.: `:UsageTrackerShowDailyAggregationByFiletypes lua markdown jsx`
 - `UsageTrackerShowDailyAggregationByProject [project_name]`
+- `:UsageTrackerRemoveEntry <filepath> <entry timestamp> <exit timestamp>`
+  - This is a utility function with which you can remove a wrongly logged item from the json
 
-### Telemetry (separately storing data in a DB)
+## Telemetry (separately storing data in a DB)
 
 Usage data saved locally (in the json file) is cleaned up after the set days,
 but if you'd like to keep it longer in a separate SqliteDB, then this is why this feature exists.
 
 You can use it for custom analysis, just make sure the endpoint is live.
 
-#### How to enable it
+### How to enable it
 
 ```console
 $ git clone https://github.com/gaborvecsei/usage-tracker.nvim.git
@@ -78,7 +83,7 @@ If you'd like to use a different volume mount then change it in the `docker-comp
 Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not changed a thing the endpoint is `http://localhost:8000`)
 parameter in the `setup({..., telemetry_endpoint="http://<HOST>:<PORT>"})`.
 
-#### Examples
+## Examples
 
 Use **`:UsageTrackerShowAgg filetype 2023-07-07 2023-07-08`**
 
@@ -128,9 +133,13 @@ Daily usage in minutes
 
 The data is stored in a json file called `usage_data.json` in the neovim config folder (`vim.fn.stdpath("config") .. "/usage_data.json"`)
 
-## TODO
+# Troubleshooting
 
-- [x] Stop timer on inactivity (e.g.: cursor was not moved for X minutes, let's not count inactivity)
-- [x] Aggregate by git project
-- [ ] UI for view the results (e.g.: popup)
-- [ ] Introduce filter for the buffers, where to trigger the timer (e.g.: we don't care about file explorer buffers)
+## Wrongly logged visit entry
+
+If you find a wrongly logged entry then you'll need to remove it from the json file and from the sqlite db
+(if you've enabled telemetry)
+
+- Use the `UsageTrackerRemoveEntry <filepath> <entry> <exit>` utility command to remove the item form the json file
+- As a 2nd step remove it from the sqlite DB with
+  `DELETE FROM visits WHERE filepath = 'your_file_path' AND entry = your_entry_time AND exit = your_exit_time;`

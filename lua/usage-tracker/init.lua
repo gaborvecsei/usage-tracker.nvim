@@ -161,7 +161,8 @@ function M.stop_timer(use_last_activity)
                 usage_data.data[filepath].git_project_name)
         else
             utils.verbose_print("Not saving the last entry event for " ..
-            filepath .. " as the elapsed time is less than " .. vim.g.usagetracker_event_wait_period_in_sec .. " seconds")
+                filepath ..
+                " as the elapsed time is less than " .. vim.g.usagetracker_event_wait_period_in_sec .. " seconds")
             -- Remove the last entry event
             visit_log[#visit_log] = nil
         end
@@ -228,40 +229,66 @@ function M.show_visit_log(filepath)
         filepath = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
     end
 
-    if not usage_data.data[filepath] then
-        print("No visit log for this file (filepath: " .. filepath .. ")")
-        return
-    end
-
-    local visit_log = usage_data.data[filepath].visit_log
-
-    local headers = { "Enter", "Exit", "Time (min)", "Keystrokes" }
-    local field_names = { "enter", "exit", "elapsed_time_in_min", "keystrokes" }
+    -- This table will contain the data which we'll visualize
+    local visit_log_table = {}
+    -- Table attributes
+    local headers = { "Filepath", "Enter", "Exit", "Time (min)", "Keystrokes" }
+    local field_names = { "filepath", "enter", "exit", "elapsed_time_in_min", "keystrokes" }
 
     local function ts_to_date(ts)
         return os.date("%Y-%m-%d %H:%M:%S", ts)
     end
 
-    -- Convert the visit log to a table
-    local visit_log_table = {}
-    for i, row in ipairs(visit_log) do
-        if i <= #visit_log then
-            local enter = ts_to_date(row.entry)
-            local exit = nil
-            local elapsed_time_in_min = nil
-            if row.exit == nil then
-                exit = "Present"
-                elapsed_time_in_min = math.floor((os.time() - row.entry) / 60 * 100) / 100
-            else
-                exit = ts_to_date(row.exit)
-                elapsed_time_in_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
+    if not usage_data.data[filepath] then
+        print("No visit log for this file (filepath: " ..
+            filepath .. "). Instead showing all the visit logs from all the files.")
+        -- Instead show all the visit logs from all the files
+
+        for f, file_visit_logs in pairs(usage_data.data) do
+            for _, visit in ipairs(file_visit_logs.visit_log) do
+                local enter = ts_to_date(visit.entry)
+                local exit
+                local elapsed_time_in_min
+                if visit.exit == nil then
+                    exit = "Present"
+                    elapsed_time_in_min = math.floor((os.time() - visit.entry) / 60 * 100) / 100
+                else
+                    exit = ts_to_date(visit.exit)
+                    elapsed_time_in_min = math.floor((visit.exit - visit.entry) / 60 * 100) / 100
+                end
+                visit_log_table[#visit_log_table + 1] = {
+                    filepath = f,
+                    enter = enter,
+                    exit = exit,
+                    elapsed_time_in_min = elapsed_time_in_min,
+                    keystrokes = visit.keystrokes
+                }
             end
-            visit_log_table[#visit_log_table + 1] = {
-                enter = enter,
-                exit = exit,
-                elapsed_time_in_min = elapsed_time_in_min,
-                keystrokes = row.keystrokes
-            }
+        end
+    else
+        local visit_log = usage_data.data[filepath].visit_log
+
+        -- Convert the visit log to a table
+        for i, row in ipairs(visit_log) do
+            if i <= #visit_log then
+                local enter = ts_to_date(row.entry)
+                local exit = nil
+                local elapsed_time_in_min = nil
+                if row.exit == nil then
+                    exit = "Present"
+                    elapsed_time_in_min = math.floor((os.time() - row.entry) / 60 * 100) / 100
+                else
+                    exit = ts_to_date(row.exit)
+                    elapsed_time_in_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
+                end
+                visit_log_table[#visit_log_table + 1] = {
+                    filepath = filepath,
+                    enter = enter,
+                    exit = exit,
+                    elapsed_time_in_min = elapsed_time_in_min,
+                    keystrokes = row.keystrokes
+                }
+            end
         end
     end
 
@@ -342,6 +369,54 @@ function M.show_aggregation(key, start_date_str, end_date_str)
 
     local title = "Total usage in minutes from " .. start_date_str .. " 00:00 to " .. end_date_str .. " 00:00"
     draw.vertical_barchart(barchart_data, 60, title, true, 42)
+end
+
+--- Remove and item from the visit log based on the filepath, entry timestamp, and exit timestamp
+---@param filepath string
+---@param entry_timestamp number
+---@param exit_timestamp number
+function M.remove_entry_from_visit_log(filepath, entry_timestamp, exit_timestamp)
+    -- This function can only run with an empty buffer where the filename is empty ('')
+    if current_buffer_filepath ~= '' then
+        print("Please run this function with an empty buffer")
+        return
+    end
+
+    if not filepath or not entry_timestamp or not exit_timestamp then
+        print("Please provide a filepath, entry timestamp, and exit timestamp. Something is missing here.")
+        return
+    end
+
+    entry_timestamp = tonumber(entry_timestamp)
+    exit_timestamp = tonumber(exit_timestamp)
+
+    local removed_item = false
+
+    if usage_data.data[filepath] then
+        local visit_log = usage_data.data[filepath].visit_log
+        for i, row in ipairs(visit_log) do
+            print(row.entry, row.exit)
+            if row.entry == entry_timestamp and row.exit == exit_timestamp then
+                table.remove(visit_log, i)
+                -- Update the visit_log in the usage_data table
+                usage_data.data[filepath].visit_log = visit_log
+                removed_item = true
+                print("Removed entry from visit log for " ..
+                    filepath .. " with entry timestamp " .. entry_timestamp .. " and exit timestamp " .. exit_timestamp)
+                break
+            end
+        end
+    else
+        print("No data found for filepath: " .. filepath)
+        return
+    end
+
+    if removed_item then
+        save_usage_data()
+    else
+        print("No entry found for filepath: " .. filepath .. " with entry timestamp " .. entry_timestamp ..
+            " and exit timestamp " .. exit_timestamp)
+    end
 end
 
 -- Clean up the visit log by removing older than 2 week entries (where the entry is older than 2 weeks)
@@ -463,6 +538,12 @@ function M.setup(opts)
             M.show_aggregation(cmd_opts.fargs[1], cmd_opts.fargs[2] or nil, cmd_opts.fargs[3] or nil)
         end,
         { nargs = '*' })
+    vim.api.nvim_create_user_command("UsageTrackerRemoveEntry",
+        function(cmd_opts)
+            M.remove_entry_from_visit_log(cmd_opts.fargs[1], cmd_opts.fargs[2], cmd_opts.fargs[3])
+        end,
+        { nargs = '*' })
+
 
 
     -- Cleanup --
