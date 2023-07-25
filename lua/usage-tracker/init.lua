@@ -78,6 +78,10 @@ local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, k
     end
 end
 
+local function remove_data_from_telemetry_db(filepath, entry_timestamp, exit_timestamp)
+
+end
+
 --- Start the timer for the current buffer
 -- Happens when we enter to a buffer
 function M.start_timer(bufnr)
@@ -419,6 +423,62 @@ function M.remove_entry_from_visit_log(filepath, entry_timestamp, exit_timestamp
     end
 end
 
+--- Sometimes the visit log can have bad entries where the logged time is just too much
+-- This function removes them from the log based on a usage threshold
+---@param logged_minute_threshold number The threshold in minutes for the logged time
+function M.clenup_log_from_bad_entries(logged_minute_threshold)
+    if not logged_minute_threshold then
+        print("Please provide a logged minute threshold")
+        return
+    end
+
+    print("Removing entries from the local visit log...")
+
+    local time_threshold_in_sec = logged_minute_threshold * 60
+    local removed_items = 0
+    for filepath, data in pairs(usage_data.data) do
+        local visit_log = data.visit_log
+        local i = 1
+        while i <= #visit_log do
+            local row = visit_log[i]
+            local elapsed_time_in_sec = row.exit - row.entry
+            if elapsed_time_in_sec > time_threshold_in_sec then
+                table.remove(visit_log, i)
+                removed_items = removed_items + 1
+                print("Removed entry from visit log for " .. filepath .. " with entry timestamp " .. row.entry ..
+                    " and exit timestamp " .. row.exit)
+            else
+                i = i + 1
+            end
+        end
+        data.visit_log = visit_log
+    end
+    print("Removed " .. removed_items .. " items from the local visit log")
+
+    local telemetry_endpoint = vim.g.usagetracker_telemetry_endpoint
+    if telemetry_endpoint and telemetry_endpoint ~= "" then
+        print("Removing entries from the Telemetry DB...")
+        local url = telemetry_endpoint .. "/cleanup?threshold_in_min=" .. logged_minute_threshold
+        local response = curl.delete(url, { accept = "application/json", timeout = 1000 })
+        if response.status == 200 then
+            local data = vim.json.decode(response.body)
+            if data.entries then
+                for _, entry in ipairs(data.entries) do
+                    print("Removed entry from telemetry DB for " .. entry.filepath .. " with entry timestamp " ..
+                        entry.entry .. " and exit timestamp " .. entry.exit)
+                end
+                print("Removed " .. #data.entries .. " items from the telemetry DB")
+            else
+                print("There is no data in the DB that could be removed based on the threshold")
+            end
+        else
+            print("Failed to remove items from the telemetry DB")
+        end
+    end
+
+    save_usage_data()
+end
+
 -- Clean up the visit log by removing older than 2 week entries (where the entry is older than 2 weeks)
 local function clenup_visit_log(filepath, days)
     local visit_log = usage_data.data[filepath].visit_log
@@ -543,6 +603,11 @@ function M.setup(opts)
             M.remove_entry_from_visit_log(cmd_opts.fargs[1], cmd_opts.fargs[2], cmd_opts.fargs[3])
         end,
         { nargs = '*' })
+    vim.api.nvim_create_user_command("UsageTrackerClenup",
+        function(cmd_opts)
+            M.clenup_log_from_bad_entries(cmd_opts.fargs[1] or nil)
+        end,
+        { nargs = '?' })
 
 
 

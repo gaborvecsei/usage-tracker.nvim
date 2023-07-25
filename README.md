@@ -1,6 +1,7 @@
 # Usage-Tracker.nvim
 
 > The plugin is in ⚠️ active development, and you can expect breaking changes in the future.
+> Also the code is kind of 💩, refactoring is required.
 
 NeoVim plugin with which you can track your usage.
 The examples speak for themselves.
@@ -62,6 +63,7 @@ the timer is stopped automatically. Please see the configuration to set your per
 - `UsageTrackerShowDailyAggregationByProject [project_name]`
 - `:UsageTrackerRemoveEntry <filepath> <entry timestamp> <exit timestamp>`
   - This is a utility function with which you can remove a wrongly logged item from the json
+- `:UsageTrackerClenup <threshold_in_min>`
 
 ## Telemetry (separately storing data in a DB)
 

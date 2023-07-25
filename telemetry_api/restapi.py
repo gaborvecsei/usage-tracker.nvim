@@ -52,6 +52,7 @@ class FileInfo(BaseModel):
     projectname: Optional[str]
     lastmodification: int
 
+
 @app.get("/status")
 async def status():
     return {"status": "ok", "alive": True}
@@ -70,9 +71,8 @@ async def create_visit(visit: Visit):
                                  filetype=visit.filetype,
                                  projectname=visit.projectname,
                                  lastmodification=visit.exit)
-            c.execute(
-                "INSERT INTO fileinfo (filepath, filetype, projectname, lastmodification) VALUES (?, ?, ?, ?)",
-                (file_info.filepath, file_info.filetype, file_info.projectname, file_info.lastmodification))
+            c.execute("INSERT INTO fileinfo (filepath, filetype, projectname, lastmodification) VALUES (?, ?, ?, ?)",
+                      (file_info.filepath, file_info.filetype, file_info.projectname, file_info.lastmodification))
 
         c.execute("INSERT INTO visits (entry, exit, keystrokes, filepath) VALUES (?, ?, ?, ?)",
                   (visit.entry, visit.exit, visit.keystrokes, visit.filepath))
@@ -81,6 +81,26 @@ async def create_visit(visit: Visit):
 
         return {"message": "Visit created successfully"}
 
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/cleanup")
+async def delete_visit(threshold_in_min: float = 24 * 60):
+    # delete all entries where the elapsed time is more than the threshold
+    # elapsed time can be calulated by exit - entry
+    threshold_in_sec = threshold_in_min * 60
+    try:
+        c.execute("SELECT filepath, entry, exit FROM visits WHERE (exit - entry) > ?", (threshold_in_sec,))
+        entries_to_delete = c.fetchall()
+        entries_to_delete = [{"filepath": entry[0], "entry": entry[1], "exit": entry[2]} for entry in entries_to_delete]
+
+        c.execute("DELETE FROM visits WHERE (exit - entry) > ?", (threshold_in_sec,))
+        conn.commit()
+        if len(entries_to_delete) > 0:
+            return {"message": "Visit deleted successfully", "entries": entries_to_delete}
+        else:
+            return {"message": "No entries to delete"}
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=str(e))
 
