@@ -137,7 +137,17 @@ The data is stored in a json file called `usage_data.json` in the neovim config 
 
 # Troubleshooting
 
-## Wrongly logged visit entry
+## Know issues
+
+These are some of the issues I found when using the plugin. Bughunters are always welcome to check on these. 🤗
+
+- Local data does not match up with the telemetry DB 100%
+- Some items in the visit logs are not "closed" - there is no exit time
+- For some visit logs the elapsed time is just too big (you can't code 25 hours in a day)
+
+## Issues & Solutions
+
+### Wrongly logged visit entry
 
 If you find a wrongly logged entry then you'll need to remove it from the json file and from the sqlite db
 (if you've enabled telemetry)
