@@ -94,10 +94,10 @@ function M.start_timer(bufnr)
     current_buffer_filepath = filepath
 
     -- Do not log an "empty" buffer
-    if filepath == "" then
-        utils.verbose_print("Filename is '' so we are not logging this buffer")
-        return
-    end
+    -- if filepath == "" then
+    --     utils.verbose_print("Filename is '' so we are not logging this buffer")
+    --     return
+    -- end
 
     local git_project_name = utils.get_git_project_name()
     local buffer_filetype = utils.get_buffer_filetype(bufnr)
@@ -188,9 +188,9 @@ function M.activity_on_keystroke(bufnr)
         M.start_timer(bufnr)
     end
 
-    if filepath == "" then
-        return
-    end
+    -- if filepath == "" then
+    --     return
+    -- end
 
     if usage_data.data[filepath] then
         local visit_log = usage_data.data[filepath].visit_log
@@ -441,6 +441,12 @@ function M.clenup_log_from_bad_entries(logged_minute_threshold)
         local i = 1
         while i <= #visit_log do
             local row = visit_log[i]
+            -- if exit timestamp is not set then let's set it for now (this can happen when a timer is not stopped)
+            if not row.exit then
+                row.exit = os.time()
+                print("Exit timestamp was not set for " .. filepath .. " with entry timestamp " .. row.entry ..
+                    " - setting it to " .. row.exit)
+            end
             local elapsed_time_in_sec = row.exit - row.entry
             if elapsed_time_in_sec > time_threshold_in_sec then
                 table.remove(visit_log, i)
