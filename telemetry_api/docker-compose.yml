@@ -9,4 +9,5 @@ services:
       - 8000:8000
     volumes:
       - ./sqlite_db:/app/data
+    restart: always
 
