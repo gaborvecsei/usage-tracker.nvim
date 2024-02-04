@@ -3,15 +3,17 @@ local M = {}
 --- Draws (on the message bar) a vertical barchart for the aggregated daily data
 -- data looks like this: {{name: 2022-02-30, value: 235.67}, ...}
 ---@param data table The data should have a name and a value field
----@param max_chars integer The maximum number of characters to use for the bar
----@param title string The title of the chart
----@param sort boolean Whether to sort the data by value
----@param mnl integer The maximum number of characters to use for the name (y axis)
+---@param max_chars integer? The maximum number of characters to use for the bar
+---@param title string? The title of the chart
+---@param sort boolean? Whether to sort the data by value
+---@param mnl integer? The maximum number of characters to use for the name (y axis)
 function M.vertical_barchart(data, max_chars, title, sort, mnl)
     max_chars = max_chars or 60
     title = title or ""
     sort = sort or false
     mnl = mnl or 30
+    ---@type table<table<string>>
+    local chunks = {}
 
     if sort then
         table.sort(data, function(a, b)
@@ -22,7 +24,9 @@ function M.vertical_barchart(data, max_chars, title, sort, mnl)
     local max_value = 0
     local max_name_length = 0
 
-    print(title .. "\n" .. string.rep("-", #title) .. "\n")
+    -- print(title .. "\n" .. string.rep("-", #title) .. "\n")
+    table.insert(chunks, { title .. "\n" .. string.rep("-", #title) .. "\n", "@markup.heading.5.markdown" })
+    table.insert(chunks, { " ", "" })
 
     for _, item in ipairs(data) do
         max_value = math.max(max_value, item.value)
@@ -34,12 +38,14 @@ function M.vertical_barchart(data, max_chars, title, sort, mnl)
 
     for _, item in ipairs(data) do
         local bar_length = math.floor((item.value / max_value) * max_chars)
-        local bar = string.rep("#", bar_length)
+        local bar = string.rep("▇", bar_length)
         local value_string = string.format("%-" .. max_chars .. "s", tostring(item.value))
         local name_string = string.format("%-" .. max_name_length .. "s", item.name)
-        local line = name_string .. " | " .. bar .. " | " .. value_string
-        print(line)
+        table.insert(chunks, { name_string .. " | ", "Boolean" })
+        table.insert(chunks, { bar, "" })
+        table.insert(chunks, { " | " .. value_string .. " \n ", "@comment.info" })
     end
+    vim.api.nvim_echo(chunks, false, {})
 end
 
 --- Prints the results in a table format to the messages
@@ -52,6 +58,8 @@ end
 function M.print_table_format(headers, data, field_names)
     -- Calculate the maximum length needed for each column
     local maxLens = {}
+    ---@type table
+    local chunks = {}
     for i, header in ipairs(headers) do
         local field_name = field_names[i]
         maxLens[field_name] = #header
@@ -75,8 +83,10 @@ function M.print_table_format(headers, data, field_names)
         separator = separator .. string.rep("-", l) .. "  "
     end
 
-    print(string.format(headerFormat, unpack(headers)))
-    print(separator)
+    -- print(string.format(headerFormat, unpack(headers)))
+    -- print(separator)
+    table.insert(chunks, { string.format(headerFormat, unpack(headers)) .. "\n", "@markup.heading.5.markdown" })
+    table.insert(chunks, { separator .. "\n", "Boolean" })
 
     for _, rowData in ipairs(data) do
         local rowFormat = ""
@@ -92,8 +102,10 @@ function M.print_table_format(headers, data, field_names)
         for i, field_name in ipairs(field_names) do
             rowValues[i] = rowData[field_name]
         end
-        print(string.format(rowFormat, unpack(rowValues)))
+        -- print(string.format(rowFormat, unpack(rowValues)))
+        table.insert(chunks, { string.format(rowFormat, unpack(rowValues)) .. "\n", "" })
     end
+    vim.api.nvim_echo(chunks, false, {})
 end
 
 return M

@@ -1,3 +1,7 @@
 *.db
+.archiv
 .DS_Store
+pyproject.toml
+poetry.lock
 
+.gp.md

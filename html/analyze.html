@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Usage Data Visualization</title>
+    <style type="text/css">
+      body {
+        font-family: Ubuntu, Roboto, Helvetica, sans-serif;
+        background-color: #e0e0e0;
+      }
+      .inputs-container {
+        display: flex;
+        flex-direction: column;
+        background-color: #204060;
+        color: white;
+        padding: 5px;
+        width: 300px;
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100%;
+        margin: 0;
+        box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.5);
+      }
+
+      .inputs-container label,
+      .inputs-container input,
+      .inputs-container select {
+        margin-bottom: 10px;
+      }
+
+      .inputs-container input,
+      .inputs-container select {
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      #startstopcontainer {
+        display: none;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        width: 100%;
+      }
+
+      #tolabel {
+        margin: 0 5px; /* Center the 'to' text and provide some spacing */
+      }
+
+      #startstopcontainer input {
+        /* width: calc(50% - 10px); */
+        flex-grow: 1;
+        background-color: white;
+        font-family: Ubuntu, Roboto, Helvetica, sans-serif;
+      }
+
+      #goButton {
+        background-color: #4caf50; /* Green */
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+        transition-duration: 0.4s;
+      }
+
+      #goButton:hover {
+        background-color: #45a049;
+        box-shadow:
+          0 12px 16px 0 rgba(0, 0, 0, 0.24),
+          0 17px 50px 0 rgba(0, 0, 0, 0.19);
+      }
+
+      .charts {
+        margin-left: 310px;
+        display: flex;
+        gap: 20px;
+        flex-direction: column;
+      }
+      .chart-container {
+        width: 700px;
+        /* margin: auto; */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="charts">
+      <div class="chart-container">
+        <canvas id="usageChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <canvas id="timelineChart"></canvas>
+      </div>
+    </div>
+    <div class="inputs-container">
+      <label for="aggregationKey">Aggregation Key:</label>
+      <select id="aggregationKey">
+        <option value="filetype">Filetype</option>
+        <option value="git_project_name">Git project name</option>
+        <option value="git_branch">Git branch</option>
+      </select>
+
+      <label for="usageMeasure">Usage Measure:</label>
+      <select id="usageMeasure">
+        <option value="keystrokes">Keystrokes</option>
+        <option value="elapsed_time_sec">Elapsed Time</option>
+      </select>
+
+      <label for="time">Period</label>
+      <select id="period">
+        <option value="alltime">All time</option>
+        <option value="today">Today</option>
+        <option value="yesterday">Yesterday</option>
+        <option value="24hours">Last 24 hours</option>
+        <option value="startend">Start/end date</option>
+      </select>
+
+      <div id="startstopcontainer">
+        <input type="date" id="dateFrom" />
+        <div id="tolabel">to</div>
+        <input type="date" id="dateTo" />
+      </div>
+
+      <label for="gitProject">Git Project:</label>
+      <select id="gitProject">
+        <option value="all">all</option>
+      </select>
+
+      <button id="goButton">GO!</button>
+    </div>
+    <!-- TODO: Serve chart.js locally. I tried npm but I could not debug it -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="analyze.js"></script>
+    <script>
+      var usageData = {{ json_data_here }};
+      addInitLoader()
+    </script>
+  </body>
+</html>
