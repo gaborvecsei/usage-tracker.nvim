@@ -1,7 +1,7 @@
-local curl = require('plenary.curl')
-local utils = require("usage-tracker.utils")
-local draw = require("usage-tracker.draw")
 local agg = require("usage-tracker.agg")
+local curl = require("plenary.curl")
+local draw = require("usage-tracker.draw")
+local utils = require("usage-tracker.utils")
 
 local M = {}
 
@@ -13,7 +13,12 @@ local usage_data = { last_cleanup = os.time(), data = {} }
 
 -- Use the Neovim config file path
 ---@type string
-local jsonFilePath = vim.fn.stdpath("config") .. "/usage_data.json"
+local jsonFilePath = vim.fn.stdpath("data") .. "/usage_data.json"
+local config_jsonFilePath = vim.fn.stdpath("config") .. "/usage_data.json"
+if vim.fn.filereadable(jsonFilePath) == 0 and vim.fn.filereadable(config_jsonFilePath) ~= 0 then
+    vim.notify("Moved the usage_data file to the data folder", vim.log.levels.INFO)
+    vim.fn.rename(config_jsonFilePath, jsonFilePath)
+end
 
 -- Variable to keep track of the last activity time - needed for inactivity "detection"
 ---@type boolean
@@ -29,7 +34,6 @@ local last_activity_timestamp = os.time()
 local current_bufnr = nil
 ---@type string
 local current_buffer_filepath = nil
-
 
 --- Save the timers to the JSON file
 local function save_usage_data()
@@ -78,9 +82,8 @@ local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, k
     end
 end
 
-local function remove_data_from_telemetry_db(filepath, entry_timestamp, exit_timestamp)
-
-end
+---@diagnostic disable-next-line: unused-function, unused-local
+local function remove_data_from_telemetry_db(filepath, entry_timestamp, exit_timestamp) end
 
 --- Start the timer for the current buffer
 -- Happens when we enter to a buffer
@@ -107,7 +110,7 @@ function M.start_timer(bufnr)
             git_project_name = git_project_name,
             filetype = buffer_filetype,
             -- Will be populated with entries like this: { entry = os.time(), exit = nil , elapsed_time_sec = 0, keystrokes = 0 }
-            visit_log = {}
+            visit_log = {},
         }
     end
 
@@ -119,11 +122,17 @@ function M.start_timer(bufnr)
         entry = os.time(),
         exit = nil,
         keystrokes = 0,
-        elapsed_time_sec = 0
+        elapsed_time_sec = 0,
     }
 
-    utils.verbose_print("Timer started for " ..
-        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at " .. os.date("%c", os.time()))
+    utils.verbose_print(
+        "Timer started for "
+            .. current_buffer_filepath
+            .. " (buffer "
+            .. current_bufnr
+            .. ") at "
+            .. os.date("%c", os.time())
+    )
 
     -- Save the updated time to the JSON file
     save_usage_data()
@@ -151,29 +160,44 @@ function M.stop_timer(use_last_activity)
         -- and calculate the elapsed time
         -- Save entry and exit event only if the elapsed time between them is more than N seconds
         local visit_log = usage_data.data[filepath].visit_log
-        if (#visit_log > 0) and ((current_time - visit_log[#visit_log].entry) > vim.g.usagetracker_event_wait_period_in_sec) then
+        if
+            (#visit_log > 0)
+            and ((current_time - visit_log[#visit_log].entry) > vim.g.usagetracker_event_wait_period_in_sec)
+        then
             local last_entry = visit_log[#visit_log]
             last_entry.exit = current_time
             last_entry.elapsed_time_sec = last_entry.exit - last_entry.entry
 
             -- Send data to the restapi
-            send_data_to_restapi(filepath,
+            send_data_to_restapi(
+                filepath,
                 last_entry.entry,
                 last_entry.exit,
                 last_entry.keystrokes,
                 usage_data.data[filepath].filetype,
-                usage_data.data[filepath].git_project_name)
+                usage_data.data[filepath].git_project_name
+            )
         else
-            utils.verbose_print("Not saving the last entry event for " ..
-                filepath ..
-                " as the elapsed time is less than " .. vim.g.usagetracker_event_wait_period_in_sec .. " seconds")
+            utils.verbose_print(
+                "Not saving the last entry event for "
+                    .. filepath
+                    .. " as the elapsed time is less than "
+                    .. vim.g.usagetracker_event_wait_period_in_sec
+                    .. " seconds"
+            )
             -- Remove the last entry event
             visit_log[#visit_log] = nil
         end
     end
 
-    utils.verbose_print("Timer stopped for " ..
-        current_buffer_filepath .. " (buffer " .. current_bufnr .. ") at " .. os.date("%c", current_time))
+    utils.verbose_print(
+        "Timer stopped for "
+            .. current_buffer_filepath
+            .. " (buffer "
+            .. current_bufnr
+            .. ") at "
+            .. os.date("%c", current_time)
+    )
 
     -- Save the updated time to the JSON file
     save_usage_data()
@@ -218,7 +242,6 @@ function M.show_lifetime_usage_by_file()
     local headers = { "Filepath", "Keystrokes", "Time (min)", "Project", "Filetype" }
     local field_names = { "path", "keystrokes", "elapsed_time_in_min", "git_project_name", "filetype" }
 
-
     -- Sort the result table based on elapsed_time_sec in descending order
     table.sort(result, function(a, b)
         return a.elapsed_time_in_min > b.elapsed_time_in_min
@@ -244,8 +267,11 @@ function M.show_visit_log(filepath)
     end
 
     if not usage_data.data[filepath] then
-        print("No visit log for this file (filepath: " ..
-            filepath .. "). Instead showing all the visit logs from all the files.")
+        print(
+            "No visit log for this file (filepath: "
+                .. filepath
+                .. "). Instead showing all the visit logs from all the files."
+        )
         -- Instead show all the visit logs from all the files
 
         for f, file_visit_logs in pairs(usage_data.data) do
@@ -265,7 +291,7 @@ function M.show_visit_log(filepath)
                     enter = enter,
                     exit = exit,
                     elapsed_time_in_min = elapsed_time_in_min,
-                    keystrokes = visit.keystrokes
+                    keystrokes = visit.keystrokes,
                 }
             end
         end
@@ -290,7 +316,7 @@ function M.show_visit_log(filepath)
                     enter = enter,
                     exit = exit,
                     elapsed_time_in_min = elapsed_time_in_min,
-                    keystrokes = row.keystrokes
+                    keystrokes = row.keystrokes,
                 }
             end
         end
@@ -316,7 +342,7 @@ function M.show_daily_stats(filetypes, project_name)
     for _, item in ipairs(data) do
         barchart_data[#barchart_data + 1] = {
             name = item.day_str,
-            value = item.time_in_min
+            value = item.time_in_min,
         }
     end
 
@@ -330,11 +356,11 @@ function M.show_daily_stats(filetypes, project_name)
     draw.vertical_barchart(barchart_data, 60, title, false, 42)
 end
 
-function M.show_aggregation(key, start_date_str, end_date_str)
+function M.show_aggregation(key, _start_date_str, _end_date_str)
     local valid_keys = {
         filetype = true,
         project = true,
-        filepath = true
+        filepath = true,
     }
 
     if not key then
@@ -348,13 +374,15 @@ function M.show_aggregation(key, start_date_str, end_date_str)
     end
 
     local today = os.date("%Y-%m-%d")
-    local start_date_str = start_date_str or today
+    local start_date_str = _start_date_str or today
     local start_date_timestamp = utils.convert_string_to_date(start_date_str)
 
     local tomorrow = os.date("%Y-%m-%d", utils.increment_timestamp_by_days(os.time(), 1))
-    local end_date_str = end_date_str or tomorrow
+    local end_date_str = _end_date_str or tomorrow
     local end_date_timestamp = utils.convert_string_to_date(end_date_str)
-
+    if not start_date_timestamp or not end_date_timestamp then
+        return
+    end
     local data = agg.aggregate(usage_data, key, start_date_timestamp, end_date_timestamp)
 
     if not data or next(data) == nil then
@@ -367,7 +395,7 @@ function M.show_aggregation(key, start_date_str, end_date_str)
         local value = math.floor(item.time_in_sec / 60 * 100) / 100
         barchart_data[#barchart_data + 1] = {
             name = item.name,
-            value = value
+            value = value,
         }
     end
 
@@ -381,7 +409,7 @@ end
 ---@param exit_timestamp number
 function M.remove_entry_from_visit_log(filepath, entry_timestamp, exit_timestamp)
     -- This function can only run with an empty buffer where the filename is empty ('')
-    if current_buffer_filepath ~= '' then
+    if current_buffer_filepath ~= "" then
         print("Please run this function with an empty buffer")
         return
     end
@@ -391,8 +419,12 @@ function M.remove_entry_from_visit_log(filepath, entry_timestamp, exit_timestamp
         return
     end
 
-    entry_timestamp = tonumber(entry_timestamp)
-    exit_timestamp = tonumber(exit_timestamp)
+    if type(entry_timestamp) ~= "number" then
+        return
+    end
+    if type(exit_timestamp) ~= "number" then
+        return
+    end
 
     local removed_item = false
 
@@ -405,8 +437,14 @@ function M.remove_entry_from_visit_log(filepath, entry_timestamp, exit_timestamp
                 -- Update the visit_log in the usage_data table
                 usage_data.data[filepath].visit_log = visit_log
                 removed_item = true
-                print("Removed entry from visit log for " ..
-                    filepath .. " with entry timestamp " .. entry_timestamp .. " and exit timestamp " .. exit_timestamp)
+                print(
+                    "Removed entry from visit log for "
+                        .. filepath
+                        .. " with entry timestamp "
+                        .. entry_timestamp
+                        .. " and exit timestamp "
+                        .. exit_timestamp
+                )
                 break
             end
         end
@@ -418,15 +456,21 @@ function M.remove_entry_from_visit_log(filepath, entry_timestamp, exit_timestamp
     if removed_item then
         save_usage_data()
     else
-        print("No entry found for filepath: " .. filepath .. " with entry timestamp " .. entry_timestamp ..
-            " and exit timestamp " .. exit_timestamp)
+        print(
+            "No entry found for filepath: "
+                .. filepath
+                .. " with entry timestamp "
+                .. entry_timestamp
+                .. " and exit timestamp "
+                .. exit_timestamp
+        )
     end
 end
 
 --- Sometimes the visit log can have bad entries where the logged time is just too much
 -- This function removes them from the log based on a usage threshold
 ---@param logged_minute_threshold number The threshold in minutes for the logged time
-function M.clenup_log_from_bad_entries(logged_minute_threshold)
+function M.cleanup_log_from_bad_entries(logged_minute_threshold)
     if not logged_minute_threshold then
         print("Please provide a logged minute threshold")
         return
@@ -444,15 +488,27 @@ function M.clenup_log_from_bad_entries(logged_minute_threshold)
             -- if exit timestamp is not set then let's set it for now (this can happen when a timer is not stopped)
             if not row.exit then
                 row.exit = os.time()
-                print("Exit timestamp was not set for " .. filepath .. " with entry timestamp " .. row.entry ..
-                    " - setting it to " .. row.exit)
+                print(
+                    "Exit timestamp was not set for "
+                        .. filepath
+                        .. " with entry timestamp "
+                        .. row.entry
+                        .. " - setting it to "
+                        .. row.exit
+                )
             end
             local elapsed_time_in_sec = row.exit - row.entry
             if elapsed_time_in_sec > time_threshold_in_sec then
                 table.remove(visit_log, i)
                 removed_items = removed_items + 1
-                print("Removed entry from visit log for " .. filepath .. " with entry timestamp " .. row.entry ..
-                    " and exit timestamp " .. row.exit)
+                print(
+                    "Removed entry from visit log for "
+                        .. filepath
+                        .. " with entry timestamp "
+                        .. row.entry
+                        .. " and exit timestamp "
+                        .. row.exit
+                )
             else
                 i = i + 1
             end
@@ -470,8 +526,14 @@ function M.clenup_log_from_bad_entries(logged_minute_threshold)
             local data = vim.json.decode(response.body)
             if data.entries then
                 for _, entry in ipairs(data.entries) do
-                    print("Removed entry from telemetry DB for " .. entry.filepath .. " with entry timestamp " ..
-                        entry.entry .. " and exit timestamp " .. entry.exit)
+                    print(
+                        "Removed entry from telemetry DB for "
+                            .. entry.filepath
+                            .. " with entry timestamp "
+                            .. entry.entry
+                            .. " and exit timestamp "
+                            .. entry.exit
+                    )
                 end
                 print("Removed " .. #data.entries .. " items from the telemetry DB")
             else
@@ -512,8 +574,14 @@ local function handle_inactivity()
         utils.verbose_print("Stopping due to inactivity")
         M.stop_timer(true)
         is_inactive = true
-        print("Inactivity detected for buffer " ..
-            current_bufnr .. " at " .. os.date("%Y-%m-%d %H:%M:%S") .. ", last active at " .. last_activity_timestamp)
+        print(
+            "Inactivity detected for buffer "
+                .. current_bufnr
+                .. " at "
+                .. os.date("%Y-%m-%d %H:%M:%S")
+                .. ", last active at "
+                .. last_activity_timestamp
+        )
     end
 end
 
@@ -550,72 +618,72 @@ function M.setup(opts)
 
     -- Autocmd --
 
-    vim.api.nvim_exec([[
-          augroup UsageTracker
-            autocmd!
+    local augroup_id = vim.api.nvim_create_augroup("UsageTracker", { clear = true })
 
-            autocmd BufEnter * lua require('usage-tracker').start_timer(vim.api.nvim_get_current_buf())
-            autocmd BufLeave,QuitPre * lua require('usage-tracker').stop_timer(false)
+    vim.api.nvim_create_autocmd("BufEnter", {
+        group = augroup_id,
+        pattern = "*",
+        callback = function()
+            require("usage-tracker").start_timer(vim.api.nvim_get_current_buf())
+        end,
+    })
 
-            autocmd TextChanged,TextChangedI * lua require('usage-tracker').activity_on_keystroke(vim.api.nvim_get_current_buf())
-            autocmd CursorMoved,CursorMovedI * lua require('usage-tracker').activity_on_keystroke(vim.api.nvim_get_current_buf())
-          augroup END
-    ]], false)
+    vim.api.nvim_create_autocmd({ "BufLeave", "QuitPre" }, {
+        group = augroup_id,
+        pattern = "*",
+        callback = function()
+            require("usage-tracker").stop_timer(false)
+        end,
+    })
 
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "CursorMoved", "CursorMovedI" }, {
+        group = augroup_id,
+        pattern = "*",
+        callback = function()
+            require("usage-tracker").activity_on_keystroke(vim.api.nvim_get_current_buf())
+        end,
+    })
 
     -- Commands --
 
-    vim.api.nvim_create_user_command("UsageTrackerShowFilesLifetime",
-        function()
-            M.show_lifetime_usage_by_file()
-        end,
-        {})
+    vim.api.nvim_create_user_command("UsageTrackerShowFilesLifetime", function()
+        M.show_lifetime_usage_by_file()
+    end, {})
 
-    vim.api.nvim_create_user_command("UsageTrackerShowVisitLog",
-        function(cmd_opts)
-            M.show_visit_log(cmd_opts.fargs[1] or nil)
-        end,
-        { nargs = '?' })
+    vim.api.nvim_create_user_command("UsageTrackerShowVisitLog", function(cmd_opts)
+        M.show_visit_log(cmd_opts.fargs[1] or nil)
+    end, { nargs = "?" })
 
-    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregation",
-        function()
-            M.show_daily_stats(nil, nil)
-        end,
-        {})
+    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregation", function()
+        M.show_daily_stats(nil, nil)
+    end, {})
 
-    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregationByFiletypes",
-        function(cmd_opts)
-            local filetypes = cmd_opts.fargs
-            if #filetypes == 0 then
-                filetypes = nil
-            end
-            M.show_daily_stats(filetypes, nil)
-        end,
-        { nargs = '*' })
+    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregationByFiletypes", function(cmd_opts)
+        local filetypes = cmd_opts.fargs
+        if #filetypes == 0 then
+            filetypes = nil
+        end
+        M.show_daily_stats(filetypes, nil)
+    end, { nargs = "*" })
 
-    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregationByProject",
-        function(cmd_opts)
-            M.show_daily_stats(nil, cmd_opts.fargs[1] or nil)
-        end,
-        { nargs = '?' })
+    vim.api.nvim_create_user_command("UsageTrackerShowDailyAggregationByProject", function(cmd_opts)
+        M.show_daily_stats(nil, cmd_opts.fargs[1] or nil)
+    end, { nargs = "?" })
 
-    vim.api.nvim_create_user_command("UsageTrackerShowAgg",
-        function(cmd_opts)
-            M.show_aggregation(cmd_opts.fargs[1], cmd_opts.fargs[2] or nil, cmd_opts.fargs[3] or nil)
+    vim.api.nvim_create_user_command("UsageTrackerShowAgg", function(cmd_opts)
+        M.show_aggregation(cmd_opts.fargs[1], cmd_opts.fargs[2] or nil, cmd_opts.fargs[3] or nil)
+    end, {
+        nargs = "*",
+        complete = function(_, _)
+            return { "filetype", "project", "filepath" }
         end,
-        { nargs = '*' })
-    vim.api.nvim_create_user_command("UsageTrackerRemoveEntry",
-        function(cmd_opts)
-            M.remove_entry_from_visit_log(cmd_opts.fargs[1], cmd_opts.fargs[2], cmd_opts.fargs[3])
-        end,
-        { nargs = '*' })
-    vim.api.nvim_create_user_command("UsageTrackerClenup",
-        function(cmd_opts)
-            M.clenup_log_from_bad_entries(cmd_opts.fargs[1] or nil)
-        end,
-        { nargs = '?' })
-
-
+    })
+    vim.api.nvim_create_user_command("UsageTrackerRemoveEntry", function(cmd_opts)
+        M.remove_entry_from_visit_log(cmd_opts.fargs[1], cmd_opts.fargs[2], cmd_opts.fargs[3])
+    end, { nargs = "*" })
+    vim.api.nvim_create_user_command("UsageTrackerCleanup", function(cmd_opts)
+        M.cleanup_log_from_bad_entries(cmd_opts.fargs[1])
+    end, { nargs = "?" })
 
     -- Cleanup --
 
@@ -631,7 +699,8 @@ function M.setup(opts)
 
     -- Check for inactivity every N seconds
     local timer = vim.loop.new_timer()
-    timer:start(0,
+    timer:start(
+        0,
         vim.g.usagetracker_inactivity_check_freq_in_sec * 1000,
         vim.schedule_wrap(function()
             handle_inactivity()
@@ -643,11 +712,15 @@ function M.setup(opts)
     if vim.g.usagetracker_telemetry_endpoint and vim.g.usagetracker_telemetry_endpoint ~= "" then
         local success, res = pcall(function()
             return curl.get(vim.g.usagetracker_telemetry_endpoint .. "/status", {
-                timeout = 1000 })
+                timeout = 1000,
+            })
         end)
         if not success or res.status ~= 200 then
-            print("UsageTracker: Telemetry service is enabled but not running: " ..
-                vim.g.usagetracker_telemetry_endpoint .. "/status")
+            print(
+                "UsageTracker: Telemetry service is enabled but not running: "
+                    .. vim.g.usagetracker_telemetry_endpoint
+                    .. "/status"
+            )
             print("UsageTracker: Turning off telemetry service...")
             vim.g.usagetracker_telemetry_endpoint = nil
         end

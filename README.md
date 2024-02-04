@@ -63,8 +63,8 @@ the timer is stopped automatically. Please see the configuration to set your per
 - `UsageTrackerShowDailyAggregationByProject [project_name]`
 - `:UsageTrackerRemoveEntry <filepath> <entry timestamp> <exit timestamp>`
   - This is a utility function with which you can remove a wrongly logged item from the json
-- `:UsageTrackerClenup <threshold_in_min>`
-
+- `:UsageTrackerCleanup <threshold_in_min>`
+ 
 ## Telemetry (separately storing data in a DB)
 
 Usage data saved locally (in the json file) is cleaned up after the set days,
@@ -133,7 +133,7 @@ Daily usage in minutes
 2023-07-05 | ################################################################################ | 333.1
 ```
 
-The data is stored in a json file called `usage_data.json` in the neovim config folder (`vim.fn.stdpath("config") .. "/usage_data.json"`)
+The data is stored in a json file called `usage_data.json` in the neovim data cache folder (`vim.fn.stdpath("data") .. "/usage_data.json"`)
 
 # Troubleshooting
 
