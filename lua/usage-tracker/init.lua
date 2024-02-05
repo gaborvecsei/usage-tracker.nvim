@@ -3,7 +3,9 @@ local curl = require("plenary.curl")
 local draw = require("usage-tracker.draw")
 local utils = require("usage-tracker.utils")
 
+-- Configuration to be used here and in the other files
 local M = {}
+M.config = require("usage-tracker.config").config
 
 -- Global variables
 
@@ -12,11 +14,13 @@ local M = {}
 local usage_data = { last_cleanup = os.time(), data = {} }
 
 -- Use the Neovim config file path
+-- TODO: Replace this with a sqlite3 file `local sqlite = require("ljsqlite3")`
 ---@type string
 local jsonFilePath = vim.fn.stdpath("data") .. "/usage_data.json"
 local config_jsonFilePath = vim.fn.stdpath("config") .. "/usage_data.json"
 if vim.fn.filereadable(jsonFilePath) == 0 and vim.fn.filereadable(config_jsonFilePath) ~= 0 then
     vim.notify("Moved the usage_data file to the data folder", vim.log.levels.INFO)
+    ---@diagnostic disable-next-line: param-type-mismatch
     vim.fn.rename(config_jsonFilePath, jsonFilePath)
 end
 
@@ -51,7 +55,7 @@ local function load_usage_data()
     if file then
         local encodedTimers = file:read("*all")
         file:close()
-        usage_data = vim.json.decode(encodedTimers)
+        usage_data = vim.json.decode(encodedTimers) or {}
     end
 end
 
@@ -66,7 +70,7 @@ local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, k
         projectname = git_project_name,
     }
 
-    local telemetry_endpoint = vim.g.usagetracker_telemetry_endpoint
+    local telemetry_endpoint = M.config.telemetry_endpoint
     if telemetry_endpoint and telemetry_endpoint ~= "" then
         local res = curl.post(telemetry_endpoint .. "/visit", {
             timeout = 1000,
@@ -160,10 +164,7 @@ function M.stop_timer(use_last_activity)
         -- and calculate the elapsed time
         -- Save entry and exit event only if the elapsed time between them is more than N seconds
         local visit_log = usage_data.data[filepath].visit_log
-        if
-            (#visit_log > 0)
-            and ((current_time - visit_log[#visit_log].entry) > vim.g.usagetracker_event_wait_period_in_sec)
-        then
+        if (#visit_log > 0) and ((current_time - visit_log[#visit_log].entry) > M.config.event_wait_period_in_sec) then
             local last_entry = visit_log[#visit_log]
             last_entry.exit = current_time
             last_entry.elapsed_time_sec = last_entry.exit - last_entry.entry
@@ -182,7 +183,7 @@ function M.stop_timer(use_last_activity)
                 "Not saving the last entry event for "
                     .. filepath
                     .. " as the elapsed time is less than "
-                    .. vim.g.usagetracker_event_wait_period_in_sec
+                    .. M.config.event_wait_period_in_sec
                     .. " seconds"
             )
             -- Remove the last entry event
@@ -517,14 +518,14 @@ function M.cleanup_log_from_bad_entries(logged_minute_threshold)
     end
     print("Removed " .. removed_items .. " items from the local visit log")
 
-    local telemetry_endpoint = vim.g.usagetracker_telemetry_endpoint
+    local telemetry_endpoint = M.config.telemetry_endpoint
     if telemetry_endpoint and telemetry_endpoint ~= "" then
         print("Removing entries from the Telemetry DB...")
         local url = telemetry_endpoint .. "/cleanup?threshold_in_min=" .. logged_minute_threshold
         local response = curl.delete(url, { accept = "application/json", timeout = 1000 })
         if response.status == 200 then
             local data = vim.json.decode(response.body)
-            if data.entries then
+            if data and data.entries then
                 for _, entry in ipairs(data.entries) do
                     print(
                         "Removed entry from telemetry DB for "
@@ -569,7 +570,7 @@ local function handle_inactivity()
         return
     end
 
-    if (os.time() - last_activity_timestamp) > (vim.g.usagetracker_inactivity_threshold_in_min * 60) then
+    if (os.time() - last_activity_timestamp) > (M.config.inactivity_threshold_in_min * 60) then
         -- Stop the timer for the current buffer
         utils.verbose_print("Stopping due to inactivity")
         M.stop_timer(true)
@@ -586,26 +587,7 @@ local function handle_inactivity()
 end
 
 function M.setup(opts)
-    -- Plugin parameters --
-
-    local function set_default(opt, default)
-        local prefix = "usagetracker_"
-        if vim.g[prefix .. opt] ~= nil then
-            return
-        elseif opts[opt] ~= nil then
-            vim.g[prefix .. opt] = opts[opt]
-        else
-            vim.g[prefix .. opt] = default
-        end
-    end
-
-    set_default("keep_eventlog_days", 14)
-    set_default("cleanup_freq_days", 7)
-    set_default("event_wait_period_in_sec", 5)
-    set_default("inactivity_threshold_in_min", 2)
-    set_default("inactivity_check_freq_in_sec", 1)
-    set_default("verbose", 0)
-    set_default("telemetry_endpoint", "")
+    require("usage-tracker.config").setup_config(opts)
 
     -- Initialize some of the "global" variables
     last_activity_timestamp = os.time()
@@ -689,9 +671,9 @@ function M.setup(opts)
 
     -- Clean up the visit log
     local now = os.time()
-    if now - usage_data.last_cleanup > (vim.g.usagetracker_cleanup_freq_days * 24 * 60 * 60) then
+    if now - usage_data.last_cleanup > (M.config.cleanup_freq_days * 24 * 60 * 60) then
         for filepath, _ in pairs(usage_data.data) do
-            clenup_visit_log(filepath, vim.g.usagetracker_keep_eventlog_days)
+            clenup_visit_log(filepath, M.config.keep_eventlog_days)
         end
         usage_data.last_cleanup = now
         save_usage_data()
@@ -701,7 +683,7 @@ function M.setup(opts)
     local timer = vim.loop.new_timer()
     timer:start(
         0,
-        vim.g.usagetracker_inactivity_check_freq_in_sec * 1000,
+        M.config.inactivity_check_freq_in_sec * 1000,
         vim.schedule_wrap(function()
             handle_inactivity()
         end)
@@ -709,20 +691,20 @@ function M.setup(opts)
 
     -- Telemetry check --
     -- Tell the user that the service is not running if there is a set endpoint
-    if vim.g.usagetracker_telemetry_endpoint and vim.g.usagetracker_telemetry_endpoint ~= "" then
+    if M.config.telemetry_endpoint and M.config.telemetry_endpoint ~= "" then
         local success, res = pcall(function()
-            return curl.get(vim.g.usagetracker_telemetry_endpoint .. "/status", {
+            return curl.get(M.config.telemetry_endpoint .. "/status", {
                 timeout = 1000,
             })
         end)
         if not success or res.status ~= 200 then
             print(
                 "UsageTracker: Telemetry service is enabled but not running: "
-                    .. vim.g.usagetracker_telemetry_endpoint
+                    .. M.config.telemetry_endpoint
                     .. "/status"
             )
             print("UsageTracker: Turning off telemetry service...")
-            vim.g.usagetracker_telemetry_endpoint = nil
+            M.config.telemetry_endpoint = nil
         end
     end
 end

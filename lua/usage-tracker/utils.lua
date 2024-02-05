@@ -2,7 +2,8 @@ local M = {}
 
 ---@param message string
 function M.verbose_print(message)
-    if vim.g.usagetracker_verbose > 0 then
+    local verbose = require("usage-tracker.config").config.verbose
+    if verbose and verbose > 0 then
         print("[usage-tracker.nvim]: " .. message)
     end
 end

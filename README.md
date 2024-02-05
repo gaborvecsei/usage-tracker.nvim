@@ -2,20 +2,34 @@
 
 > The plugin is in ⚠️ active development, and you can expect breaking changes in the future.
 > Also the code is kind of 💩, refactoring is required.
+<!-- Hidden remark from a contributor: It is not 💩! -->
 
 NeoVim plugin with which you can track your usage.
 The examples speak for themselves.
 Logs are stored locally, so no sensitive data leaves your machine.
 
-# Install
+# Setup
 
-Use your favourite package installer, there are no parameters at the moment. For example:
+Use your favourite package manager, parameters are optional. 
 
+- [vim-plug](https://github.com/junegunn/vim-plug):
 ```lua
 Plug 'gaborvecsei/usage-tracker.nvim'
 ```
 
-# Setup
+- [lazy.nvim](https://github.com/folke/lazy.nvim)
+```lua
+{
+  "gaborvecsei/usage-tracker.nvim",
+  config = function()
+    require("usage-tracker").setup({})
+  end,
+}
+```
+
+# Configuration
+
+The setup takes these default parameters
 
 ```lua
 require('usage-tracker').setup({
@@ -29,7 +43,7 @@ require('usage-tracker').setup({
 })
 ```
 
-| Variable                       | Description                                                                       | Type | Default |
+| Parameter                      | Description                                                                       | Type | Default |
 | ------------------------------ | --------------------------------------------------------------------------------- | ---- | ------- |
 | `keep_eventlog_days`           | How much days of data should we keep in the event log after a cleanup             | int  | 14      |
 | `cleanup_freq_days`            | Frequency of the cleanup job for the event logs                                   | int  | 7       |
@@ -39,7 +53,6 @@ require('usage-tracker').setup({
 | `verbose`                      | Debug messages are printed if it's `>0`                                           | int  | 1       |
 | `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | ''      |
 
-(The variables are in the global space with the prefix `usagetracker_`)
 
 # Usage
 
