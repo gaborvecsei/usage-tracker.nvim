@@ -8,6 +8,7 @@ local M = {}
 ---@field inactivity_check_freq_in_sec integer
 ---@field verbose integer
 ---@field telemetry_endpoint string
+---@field json_file string
 
 ---@type Config
 M.config = {
@@ -18,6 +19,7 @@ M.config = {
     inactivity_check_freq_in_sec = 1,
     verbose = 0,
     telemetry_endpoint = "",
+    json_file = vim.fn.stdpath("data") .. "/usage_data.json",
 }
 
 function M.setup_config(opts)

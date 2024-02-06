@@ -13,17 +13,6 @@ M.config = require("usage-tracker.config").config
 ---@type table
 local usage_data = { last_cleanup = os.time(), data = {} }
 
--- Use the Neovim config file path
--- TODO: Replace this with a sqlite3 file `local sqlite = require("ljsqlite3")`
----@type string
-local jsonFilePath = vim.fn.stdpath("data") .. "/usage_data.json"
-local config_jsonFilePath = vim.fn.stdpath("config") .. "/usage_data.json"
-if vim.fn.filereadable(jsonFilePath) == 0 and vim.fn.filereadable(config_jsonFilePath) ~= 0 then
-    vim.notify("Moved the usage_data file to the data folder", vim.log.levels.INFO)
-    ---@diagnostic disable-next-line: param-type-mismatch
-    vim.fn.rename(config_jsonFilePath, jsonFilePath)
-end
-
 -- Variable to keep track of the last activity time - needed for inactivity "detection"
 ---@type boolean
 local is_inactive = false
@@ -42,7 +31,7 @@ local current_buffer_filepath = nil
 --- Save the timers to the JSON file
 local function save_usage_data()
     local encodedTimers = vim.json.encode(usage_data)
-    local file = io.open(jsonFilePath, "w")
+    local file = io.open(M.config.json_file, "w")
     if file then
         file:write(encodedTimers)
         file:close()
@@ -51,7 +40,7 @@ end
 
 --- Load the timers from the JSON file
 local function load_usage_data()
-    local file = io.open(jsonFilePath, "r")
+    local file = io.open(M.config.json_file, "r")
     if file then
         local encodedTimers = file:read("*all")
         file:close()

@@ -52,6 +52,7 @@ require('usage-tracker').setup({
 | `inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
 | `verbose`                      | Debug messages are printed if it's `>0`                                           | int  | 1       |
 | `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | ''      |
+| `json_file`                  | path of the text file which stores the usage data                                 | str  | cache folder      |
 
 
 # Usage
