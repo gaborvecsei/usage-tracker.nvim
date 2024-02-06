@@ -48,8 +48,25 @@ local function load_usage_data()
     end
 end
 
--- Send data to the restapi
-local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, keystrokes, filetype, git_project_name)
+---@param filepath string
+---@param entry_timestamp number
+---@param exit_timestamp number
+---@param keystrokes number
+---@param filetype string
+---@param git_project_name string
+---@param git_branch string
+local function send_data_to_restapi(
+    filepath,
+    entry_timestamp,
+    exit_timestamp,
+    keystrokes,
+    filetype,
+    git_project_name,
+    git_branch
+)
+    if not M.config.telemetry_endpoint or M.config.telemetry_endpoint == "" then
+        return
+    end
     local json = {
         entry = entry_timestamp,
         exit = exit_timestamp,
@@ -57,22 +74,20 @@ local function send_data_to_restapi(filepath, entry_timestamp, exit_timestamp, k
         filepath = filepath,
         filetype = filetype,
         projectname = git_project_name,
+        git_branch = git_branch,
     }
 
-    local telemetry_endpoint = M.config.telemetry_endpoint
-    if telemetry_endpoint and telemetry_endpoint ~= "" then
-        local res = curl.post(telemetry_endpoint .. "/visit", {
-            timeout = 1000,
-            body = vim.json.encode(json),
-            headers = {
-                content_type = "application/json",
-            },
-        })
-        if res.status ~= 200 then
-            print("Error sending data to the restapi via the endpoint " .. telemetry_endpoint .. "/visit")
-        end
-        utils.verbose_print("Data sent to the restapi via the telemetry endpoint for file " .. filepath)
+    local res = curl.post(M.config.telemetry_endpoint .. "/visit", {
+        timeout = 1000,
+        body = vim.json.encode(json),
+        headers = {
+            content_type = "application/json",
+        },
+    })
+    if res.status ~= 200 then
+        print("Error sending data to the restapi via the endpoint " .. M.config.telemetry_endpoint .. "/visit")
     end
+    utils.verbose_print("Data sent to the restapi via the telemetry endpoint for file " .. filepath)
 end
 
 ---@diagnostic disable-next-line: unused-function, unused-local
@@ -96,27 +111,34 @@ function M.start_timer(bufnr)
     -- end
 
     local git_project_name = utils.get_git_project_name()
+    local git_branch = utils.get_git_branch()
     local buffer_filetype = utils.get_buffer_filetype(bufnr)
 
     if not usage_data.data[filepath] then
         usage_data.data[filepath] = {
             git_project_name = git_project_name,
+            git_branch = git_branch,
             filetype = buffer_filetype,
-            -- Will be populated with entries like this: { entry = os.time(), exit = nil , elapsed_time_sec = 0, keystrokes = 0 }
+            -- Will be populated with entries like this:
+            -- { entry = os.time(),
+            --   exit = nil ,
+            --   elapsed_time_sec = 0,
+            --   keystrokes = 0 }
             visit_log = {},
         }
     end
 
     -- TODO: should we notify the user if the git project name has changed?
     usage_data.data[filepath].git_project_name = git_project_name
+    usage_data.data[filepath].git_branch = git_branch
 
     -- Record an entry event
-    usage_data.data[filepath].visit_log[#usage_data.data[filepath].visit_log + 1] = {
+    table.insert(usage_data.data[filepath].visit_log, {
         entry = os.time(),
         exit = nil,
         keystrokes = 0,
         elapsed_time_sec = 0,
-    }
+    })
 
     utils.verbose_print(
         "Timer started for "
@@ -165,7 +187,8 @@ function M.stop_timer(use_last_activity)
                 last_entry.exit,
                 last_entry.keystrokes,
                 usage_data.data[filepath].filetype,
-                usage_data.data[filepath].git_project_name
+                usage_data.data[filepath].git_project_name,
+                usage_data.data[filepath].git_branch
             )
         else
             utils.verbose_print(
@@ -241,6 +264,7 @@ function M.show_lifetime_usage_by_file()
     draw.print_table_format(headers, result, field_names)
 end
 
+---@param filepath string|nil
 function M.show_visit_log(filepath)
     if filepath == nil then
         filepath = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
@@ -276,13 +300,13 @@ function M.show_visit_log(filepath)
                     exit = ts_to_date(visit.exit)
                     elapsed_time_in_min = math.floor((visit.exit - visit.entry) / 60 * 100) / 100
                 end
-                visit_log_table[#visit_log_table + 1] = {
+                table.insert(visit_log_table, {
                     filepath = f,
                     enter = enter,
                     exit = exit,
                     elapsed_time_in_min = elapsed_time_in_min,
                     keystrokes = visit.keystrokes,
-                }
+                })
             end
         end
     else
@@ -301,13 +325,13 @@ function M.show_visit_log(filepath)
                     exit = ts_to_date(row.exit)
                     elapsed_time_in_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
                 end
-                visit_log_table[#visit_log_table + 1] = {
+                table.insert(visit_log_table, {
                     filepath = filepath,
                     enter = enter,
                     exit = exit,
                     elapsed_time_in_min = elapsed_time_in_min,
                     keystrokes = row.keystrokes,
-                }
+                })
             end
         end
     end
@@ -330,10 +354,10 @@ function M.show_daily_stats(filetypes, project_name)
 
     local barchart_data = {}
     for _, item in ipairs(data) do
-        barchart_data[#barchart_data + 1] = {
+        table.insert(barchart_data, {
             name = item.day_str,
             value = item.time_in_min,
-        }
+        })
     end
 
     local title = "Daily usage in minutes"
@@ -383,10 +407,10 @@ function M.show_aggregation(key, _start_date_str, _end_date_str)
     local barchart_data = {}
     for _, item in ipairs(data) do
         local value = math.floor(item.time_in_sec / 60 * 100) / 100
-        barchart_data[#barchart_data + 1] = {
+        table.insert(barchart_data, {
             name = item.name,
             value = value,
-        }
+        })
     end
 
     local title = "Total usage in minutes from " .. start_date_str .. " 00:00 to " .. end_date_str .. " 00:00"

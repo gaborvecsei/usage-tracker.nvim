@@ -62,10 +62,10 @@ function M.increment_timestamp_by_days(timestamp, days)
     return increased_timestamp
 end
 
---- Get the current git project name
--- If the file is not in a git project, return an empty string
+---@return string
 function M.get_git_project_name()
     local result = vim.fn.systemlist("git rev-parse --show-toplevel 2>/dev/null")
+    -- If the file is not in a git project, return an empty string
     if vim.v.shell_error == 0 and result ~= nil and result[1] ~= "" then
         local folder_path = vim.trim(result[1])
         return vim.fn.fnamemodify(folder_path, ":t")
@@ -74,8 +74,19 @@ function M.get_git_project_name()
     end
 end
 
---- Get the git project name
+---@return string
+function M.get_git_branch()
+    local result = vim.fn.systemlist("git branch --show-current 2>/dev/null")
+    if vim.v.shell_error == 0 and result ~= nil and result[1] ~= "" then
+        local folder_path = vim.trim(result[1])
+        return vim.fn.fnamemodify(folder_path, ":t")
+    else
+        return ""
+    end
+end
+
 ---@param bufnr integer
+---@return string
 function M.get_buffer_filetype(bufnr)
     local filetype = vim.api.nvim_get_option_value("ft", { buf = bufnr })
     if filetype == "" then
