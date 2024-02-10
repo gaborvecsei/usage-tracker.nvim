@@ -68,7 +68,7 @@ function M.get_git_project_name()
     -- If the file is not in a git project, return an empty string
     if vim.v.shell_error == 0 and result ~= nil and result[1] ~= "" then
         local folder_path = vim.trim(result[1])
-        return vim.fn.fnamemodify(folder_path, ":t")
+        return tostring(vim.fn.fnamemodify(folder_path, ":t"))
     else
         return ""
     end
@@ -79,7 +79,7 @@ function M.get_git_branch()
     local result = vim.fn.systemlist("git branch --show-current 2>/dev/null")
     if vim.v.shell_error == 0 and result ~= nil and result[1] ~= "" then
         local folder_path = vim.trim(result[1])
-        return vim.fn.fnamemodify(folder_path, ":t")
+        return tostring(vim.fn.fnamemodify(folder_path, ":t"))
     else
         return ""
     end

@@ -7,24 +7,41 @@ local utils = require("usage-tracker.utils")
 local M = {}
 M.config = require("usage-tracker.config").config
 
--- Global variables
+-- Global state variables of the usage tracker
 
--- We'll use this object for storing the data
----@type table
+---@class VisitLogEntry
+---@field entry number|nil
+---@field exit number|nil
+---@field elapsed_time_sec number
+---@field keystrokes number
+
+---@class UsagedataPerFilepath
+---@field git_project_name string
+---@field git_branch string
+---@field filetype string
+---@field visit_log table<VisitLogEntry>
+
+---@class UsageData
+---@field last_cleanup number
+---@field data table<string, UsagedataPerFilepath>
+
+--- Storage for all usage data
+---@type UsageData
 local usage_data = { last_cleanup = os.time(), data = {} }
 
--- Variable to keep track of the last activity time - needed for inactivity "detection"
+--- Flag to track inactivity status (true for inactive, false for active)
 ---@type boolean
 local is_inactive = false
 
 ---@type number
 local last_activity_timestamp = os.time()
 
--- Variable to keep track of the current buffer
--- Mostly needed as we cannot use the vim.api.nvim_buf_get_name and vim.api.nvim_get_current_buf functions
--- in the vim event loops (which is needed for the inactivity detection)
+--- Variable to keep track of the current buffer
+--- Mostly needed as we cannot use the vim.api.nvim_buf_get_name and vim.api.nvim_get_current_buf functions
+--- in the vim event loops (which is needed for the inactivity detection)
 ---@type number
 local current_bufnr = nil
+
 ---@type string
 local current_buffer_filepath = nil
 
@@ -67,14 +84,15 @@ local function send_data_to_restapi(
     if not M.config.telemetry_endpoint or M.config.telemetry_endpoint == "" then
         return
     end
+
     local json = {
         entry = entry_timestamp,
         exit = exit_timestamp,
         keystrokes = keystrokes,
         filepath = filepath,
         filetype = filetype,
-        projectname = git_project_name,
-        branch = git_branch,
+        git_project_name = git_project_name,
+        git_branch = git_branch,
     }
 
     local res = curl.post(M.config.telemetry_endpoint .. "/visit", {
@@ -90,11 +108,12 @@ local function send_data_to_restapi(
     utils.verbose_print("Data sent to the restapi via the telemetry endpoint for file " .. filepath)
 end
 
+---TODO: This is not implemented yet
 ---@diagnostic disable-next-line: unused-function, unused-local
 local function remove_data_from_telemetry_db(filepath, entry_timestamp, exit_timestamp) end
 
---- Start the timer for the current buffer
--- Happens when we enter to a buffer
+--- Start the timer for the current buffer, called when entering the buffer
+---@param bufnr number
 function M.start_timer(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
@@ -104,17 +123,12 @@ function M.start_timer(bufnr)
     current_bufnr = bufnr
     current_buffer_filepath = filepath
 
-    -- Do not log an "empty" buffer
-    -- if filepath == "" then
-    --     utils.verbose_print("Filename is '' so we are not logging this buffer")
-    --     return
-    -- end
-
     local git_project_name = utils.get_git_project_name()
     local git_branch = utils.get_git_branch()
     local buffer_filetype = utils.get_buffer_filetype(bufnr)
 
     if not usage_data.data[filepath] then
+        ---@type UsagedataPerFilepath
         usage_data.data[filepath] = {
             git_project_name = git_project_name,
             git_branch = git_branch,
@@ -124,6 +138,7 @@ function M.start_timer(bufnr)
             --   exit = nil ,
             --   elapsed_time_sec = 0,
             --   keystrokes = 0 }
+            --- @type VisitLogEntry[]
             visit_log = {},
         }
     end
@@ -273,8 +288,36 @@ function M.show_visit_log(filepath)
     local headers = { "Filepath", "Enter", "Exit", "Time (min)", "Keystrokes" }
     local field_names = { "filepath", "enter", "exit", "elapsed_time_in_min", "keystrokes" }
 
+    --- convert timestamp to data
+    ---@param ts number
+    ---@return string
     local function ts_to_date(ts)
-        return os.date("%Y-%m-%d %H:%M:%S", ts)
+        return tostring(os.date("%Y-%m-%d %H:%M:%S", ts))
+    end
+
+    --- helper function to be used in the two cases below
+    ---@param filep string
+    local function visit_log_helper(visit, filep)
+        ---@type string
+        local enter = ts_to_date(visit.entry)
+        ---@type string
+        local exit
+        ---@type number
+        local elapsed_time_in_min
+        if visit.exit == nil then
+            exit = "Present"
+            elapsed_time_in_min = math.floor((os.time() - visit.entry) / 60 * 100) / 100
+        else
+            exit = ts_to_date(visit.exit)
+            elapsed_time_in_min = math.floor((visit.exit - visit.entry) / 60 * 100) / 100
+        end
+        table.insert(visit_log_table, {
+            filepath = filep,
+            enter = enter,
+            exit = exit,
+            elapsed_time_in_min = elapsed_time_in_min,
+            keystrokes = visit.keystrokes,
+        })
     end
 
     if not usage_data.data[filepath] then
@@ -284,26 +327,9 @@ function M.show_visit_log(filepath)
                 .. "). Instead showing all the visit logs from all the files."
         )
         -- Instead show all the visit logs from all the files
-
         for f, file_visit_logs in pairs(usage_data.data) do
             for _, visit in ipairs(file_visit_logs.visit_log) do
-                local enter = ts_to_date(visit.entry)
-                local exit
-                local elapsed_time_in_min
-                if visit.exit == nil then
-                    exit = "Present"
-                    elapsed_time_in_min = math.floor((os.time() - visit.entry) / 60 * 100) / 100
-                else
-                    exit = ts_to_date(visit.exit)
-                    elapsed_time_in_min = math.floor((visit.exit - visit.entry) / 60 * 100) / 100
-                end
-                table.insert(visit_log_table, {
-                    filepath = f,
-                    enter = enter,
-                    exit = exit,
-                    elapsed_time_in_min = elapsed_time_in_min,
-                    keystrokes = visit.keystrokes,
-                })
+                visit_log_helper(visit, f)
             end
         end
     else
@@ -312,23 +338,7 @@ function M.show_visit_log(filepath)
         -- Convert the visit log to a table
         for i, row in ipairs(visit_log) do
             if i <= #visit_log then
-                local enter = ts_to_date(row.entry)
-                local exit = nil
-                local elapsed_time_in_min = nil
-                if row.exit == nil then
-                    exit = "Present"
-                    elapsed_time_in_min = math.floor((os.time() - row.entry) / 60 * 100) / 100
-                else
-                    exit = ts_to_date(row.exit)
-                    elapsed_time_in_min = math.floor((row.exit - row.entry) / 60 * 100) / 100
-                end
-                table.insert(visit_log_table, {
-                    filepath = filepath,
-                    enter = enter,
-                    exit = exit,
-                    elapsed_time_in_min = elapsed_time_in_min,
-                    keystrokes = row.keystrokes,
-                })
+                visit_log_helper(row, filepath)
             end
         end
     end
@@ -342,6 +352,8 @@ function M.show_visit_log(filepath)
     draw.print_table_format(headers, visit_log_table, field_names)
 end
 
+---@param filetypes string[]? Filetypes which we would like to include, if empty then we don't filter for any filetypes and everything is included
+---@param project_name string? Project name which we would like to include, if empty then we don't filter for any project and everything is included
 function M.show_daily_stats(filetypes, project_name)
     local data = agg.create_daily_usage_aggregation(usage_data, filetypes, project_name)
     if #data == 0 then
@@ -367,7 +379,11 @@ function M.show_daily_stats(filetypes, project_name)
     draw.vertical_barchart(barchart_data, 60, title, false, 42)
 end
 
-function M.show_aggregation(key, _start_date_str, _end_date_str)
+--- Aggregation in the message
+---@param key string
+---@param _start_date? string
+---@param _end_date? string
+function M.show_aggregation(key, _start_date, _end_date)
     local valid_keys = {
         filetype = true,
         project = true,
@@ -375,8 +391,18 @@ function M.show_aggregation(key, _start_date_str, _end_date_str)
     }
 
     if not key then
-        print("Please specify an aggregation key: filetype, project, or filepath")
-        return
+        vim.ui.select({ "filetype", "project", "filepath" }, {
+            prompt = "Choose an aggregation key:",
+            format_item = function(item)
+                return string.format("Aggregate by %s", item)
+            end,
+        }, function(choice)
+            if choice then
+                key = choice
+            else
+                print("No aggregation key was chosen.")
+            end
+        end)
     end
 
     if not valid_keys[key] then
@@ -384,12 +410,12 @@ function M.show_aggregation(key, _start_date_str, _end_date_str)
         return
     end
 
-    local today = os.date("%Y-%m-%d")
-    local start_date_str = _start_date_str or today
+    local today = tostring(os.date("%Y-%m-%d"))
+    local start_date_str = _start_date or today
     local start_date_timestamp = utils.convert_string_to_date(start_date_str)
 
-    local tomorrow = os.date("%Y-%m-%d", utils.increment_timestamp_by_days(os.time(), 1))
-    local end_date_str = _end_date_str or tomorrow
+    local tomorrow = tostring(os.date("%Y-%m-%d", utils.increment_timestamp_by_days(os.time(), 1)))
+    local end_date_str = _end_date or tomorrow
     local end_date_timestamp = utils.convert_string_to_date(end_date_str)
     if not start_date_timestamp or not end_date_timestamp then
         return
@@ -605,11 +631,31 @@ function M.setup(opts)
     current_buffer_filepath = vim.api.nvim_buf_get_name(current_bufnr)
 
     -- Load existing data --
-
     load_usage_data() -- Load the timers from the JSON file on plugin setup
 
-    -- Autocmd --
+    -- Telemetry check --
+    -- Tell the user that the service is not running if there is a set endpoint
+    if M.config.telemetry_endpoint and M.config.telemetry_endpoint ~= "" then
+        local res = curl.get(M.config.telemetry_endpoint .. "/status", {
+            timeout = 500,
+            on_error = function()
+                return
+            end,
+        })
 
+        if res.status ~= 200 then
+            vim.notify(
+                "UsageTracker: Telemetry service is enabled but not running: "
+                    .. M.config.telemetry_endpoint
+                    .. "/status"
+                    .. ".. Turning off telemetry service...",
+                vim.log.levels.WARN
+            )
+            M.config.telemetry_endpoint = nil
+        end
+    end
+
+    -- Autocmd --
     local augroup_id = vim.api.nvim_create_augroup("UsageTracker", { clear = true })
 
     vim.api.nvim_create_autocmd("BufEnter", {
@@ -637,7 +683,6 @@ function M.setup(opts)
     })
 
     -- Commands --
-
     vim.api.nvim_create_user_command("UsageTrackerShowFilesLifetime", function()
         M.show_lifetime_usage_by_file()
     end, {})
@@ -698,25 +743,6 @@ function M.setup(opts)
             handle_inactivity()
         end)
     )
-
-    -- Telemetry check --
-    -- Tell the user that the service is not running if there is a set endpoint
-    if M.config.telemetry_endpoint and M.config.telemetry_endpoint ~= "" then
-        local success, res = pcall(function()
-            return curl.get(M.config.telemetry_endpoint .. "/status", {
-                timeout = 1000,
-            })
-        end)
-        if not success or res.status ~= 200 then
-            print(
-                "UsageTracker: Telemetry service is enabled but not running: "
-                    .. M.config.telemetry_endpoint
-                    .. "/status"
-            )
-            print("UsageTracker: Turning off telemetry service...")
-            M.config.telemetry_endpoint = nil
-        end
-    end
 end
 
 return M

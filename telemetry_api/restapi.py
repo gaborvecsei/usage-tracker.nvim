@@ -29,8 +29,8 @@ c.execute("""
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         filepath TEXT UNIQUE NOT NULL,
         filetype TEXT,
-        projectname TEXT,
-        branch TEXT,
+        git_project_name TEXT,
+        git_branch TEXT,
         lastmodification INTEGER NOT NULL
     )
 """)
@@ -44,15 +44,15 @@ class Visit(BaseModel):
     keystrokes: int
     filepath: str
     filetype: Optional[str]
-    projectname: Optional[str]
-    branch: Optional[str]
+    git_project_name: Optional[str]
+    git_branch: Optional[str]
 
 
 class FileInfo(BaseModel):
     filepath: str
     filetype: Optional[str]
-    projectname: Optional[str]
-    branch: Optional[str]
+    git_project_name: Optional[str]
+    git_branch: Optional[str]
     lastmodification: int
 
 
@@ -72,11 +72,11 @@ async def create_visit(visit: Visit):
         else:
             file_info = FileInfo(filepath=visit.filepath,
                                  filetype=visit.filetype,
-                                 projectname=visit.projectname,
-                                 branch=visit.branch,
+                                 git_project_name=visit.git_project_name,
+                                 git_branch=visit.git_branch,
                                  lastmodification=visit.exit)
-            c.execute("INSERT INTO fileinfo (filepath, filetype, projectname, branch, lastmodification) VALUES (?, ?, ?, ?, ?)",
-                      (file_info.filepath, file_info.filetype, file_info.projectname, file_info.branch, file_info.lastmodification))
+            c.execute("INSERT INTO fileinfo (filepath, filetype, git_project_name, git_branch, lastmodification) VALUES (?, ?, ?, ?, ?)",
+                      (file_info.filepath, file_info.filetype, file_info.git_project_name, file_info.git_branch, file_info.lastmodification))
 
         c.execute("INSERT INTO visits (entry, exit, keystrokes, filepath) VALUES (?, ?, ?, ?)",
                   (visit.entry, visit.exit, visit.keystrokes, visit.filepath))

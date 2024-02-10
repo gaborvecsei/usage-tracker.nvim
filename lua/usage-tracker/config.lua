@@ -19,7 +19,8 @@ M.config = {
     inactivity_check_freq_in_sec = 1,
     verbose = 0,
     telemetry_endpoint = "",
-    json_file = vim.fn.stdpath("data") .. "/usage_data.json",
+    -- config path for backward compatibility
+    json_file = vim.fn.stdpath("config") .. "/usage_data.json",
 }
 
 function M.setup_config(opts)
