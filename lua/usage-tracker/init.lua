@@ -74,7 +74,7 @@ local function send_data_to_restapi(
         filepath = filepath,
         filetype = filetype,
         projectname = git_project_name,
-        git_branch = git_branch,
+        branch = git_branch,
     }
 
     local res = curl.post(M.config.telemetry_endpoint .. "/visit", {
@@ -216,7 +216,8 @@ function M.stop_timer(use_last_activity)
     save_usage_data()
 end
 
--- Count the keystrokes
+--- Count the keystrokes
+---@param bufnr number
 function M.activity_on_keystroke(bufnr)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
 
@@ -224,10 +225,6 @@ function M.activity_on_keystroke(bufnr)
         -- As there is activity we can start the timer again
         M.start_timer(bufnr)
     end
-
-    -- if filepath == "" then
-    --     return
-    -- end
 
     if usage_data.data[filepath] then
         local visit_log = usage_data.data[filepath].visit_log

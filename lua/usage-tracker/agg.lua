@@ -55,7 +55,7 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
                 local entry_day_date = utils.timestamp_to_date(row_data.entry, true)
                 local entry_day_date_str = os.date("%Y-%m-%d", row_data.entry)
 
-                local exit_day_date = utils.timestamp_to_date(row_data.exit, true)
+                -- local exit_day_date = utils.timestamp_to_date(row_data.exit, true)
                 local exit_day_date_str = os.date("%Y-%m-%d", row_data.exit)
 
                 if entry_day_date_str ~= exit_day_date_str then

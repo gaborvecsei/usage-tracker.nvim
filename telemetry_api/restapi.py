@@ -30,6 +30,7 @@ c.execute("""
         filepath TEXT UNIQUE NOT NULL,
         filetype TEXT,
         projectname TEXT,
+        branch TEXT,
         lastmodification INTEGER NOT NULL
     )
 """)
@@ -44,12 +45,14 @@ class Visit(BaseModel):
     filepath: str
     filetype: Optional[str]
     projectname: Optional[str]
+    branch: Optional[str]
 
 
 class FileInfo(BaseModel):
     filepath: str
     filetype: Optional[str]
     projectname: Optional[str]
+    branch: Optional[str]
     lastmodification: int
 
 
@@ -70,9 +73,10 @@ async def create_visit(visit: Visit):
             file_info = FileInfo(filepath=visit.filepath,
                                  filetype=visit.filetype,
                                  projectname=visit.projectname,
+                                 branch=visit.branch,
                                  lastmodification=visit.exit)
-            c.execute("INSERT INTO fileinfo (filepath, filetype, projectname, lastmodification) VALUES (?, ?, ?, ?)",
-                      (file_info.filepath, file_info.filetype, file_info.projectname, file_info.lastmodification))
+            c.execute("INSERT INTO fileinfo (filepath, filetype, projectname, branch, lastmodification) VALUES (?, ?, ?, ?, ?)",
+                      (file_info.filepath, file_info.filetype, file_info.projectname, file_info.branch, file_info.lastmodification))
 
         c.execute("INSERT INTO visits (entry, exit, keystrokes, filepath) VALUES (?, ?, ?, ?)",
                   (visit.entry, visit.exit, visit.keystrokes, visit.filepath))
