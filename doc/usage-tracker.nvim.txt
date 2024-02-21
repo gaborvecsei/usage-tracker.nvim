@@ -1,0 +1,99 @@
+*usage-tracker.nvim*   Tack your neovim activity and show stats
+===============================================================================
+USAGE-TRACKER.NVIM
+
+===============================================================================
+INTRODUCTION                                                  *ut-introduction*
+
+Usage-Tracker.nvim is a NeoVim plugin for tracking your activity across Git
+projects, branches, and filetypes. All data is stored locally.
+
+
+===============================================================================
+CONFIGURATION                                      *usage-tracker-configuration*
+
+Configure the plugin using the setup function with the following parameters:
+
+Call `require('usage-tracker').setup({<config>})` with `<config>` being:
+
+  >
+  keep_eventlog_days
+                Days to retain event log data. Default is 14.
+
+  cleanup_freq_days
+                Frequency of event log cleanup in days. Default is 7.
+
+  event_wait_period_in_sec
+                Seconds to wait before logging events. Default is 5.
+
+  inactivity_threshold_in_min
+                Minutes of inactivity before stopping the timer. Default is 5.
+
+  inactivity_check_freq_in_sec
+                Frequency of inactivity checks in seconds. Default is 5.
+
+  verbose       Set to 1 or more for debug messages.
+
+  telemetry_endpoint
+                REST API endpoint for storing data in a database.
+
+  json_file     Path for the local JSON file storing usage data. Default is in
+                the cache folder.
+  <
+
+COMMANDS                                                         *:UsageTracker*
+
+The following commands are available:
+
+  >
+  :UsageTrackerShowAgg <aggregation_type> [start_date] [end_date]
+                Show aggregated usage data.
+
+  :UsageTrackerShowFilesLifetime
+                Show lifetime stats for files.
+
+  :UsageTrackerShowVisitLog [filepath]
+                Show visit logs for a filepath or all logs by default.
+
+  :UsageTrackerShowDailyAggregation
+                Show daily aggregated usage data.
+
+  :UsageTrackerShowDailyAggregationByFiletypes [filetypes]
+                Show daily usage by filetypes.
+
+  :UsageTrackerShowDailyAggregationByProject [project_name]
+                Show daily usage by project.
+
+  :UsageTrackerRemoveEntry <filepath> <entry timestamp> <exit timestamp>
+                Remove an entry from the usage log.
+
+  :UsageTrackerCleanup <threshold_in_min>
+                Clean up old usage data.
+
+  :UsageTrackerHTML
+                Create a local HTML file with visualized data.
+  <
+
+For optional telemetry database setup, use the provided docker-compose config
+and set the `telemetry_endpoint` parameter in the setup function.
+
+EXAMPLES                                                            *ut-examples*
+
+  >
+  :UsageTrackerShowAgg filetype 2023-07-07 2023-07-08
+                Shows summary of usage by filetype between specified dates.
+
+  :UsageTrackerShowFilesLifetime
+                Displays the number of keystrokes and time spent in each file.
+
+  :UsageTrackerShowVisitLog
+                Outputs entry and exit times, and duration for visits to files.
+
+  :UsageTrackerShowDailyAggregationByFiletypes lua python markdown
+                Daily usage stats filtered by specified filetypes.
+  <
+
+===============================================================================
+
+
+vim:tw=78:ts=8:ft=help:norl:

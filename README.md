@@ -1,21 +1,38 @@
 # Usage-Tracker.nvim
 
 > The plugin is in ⚠️ active development, and you can expect breaking changes in the future.
-> Also the code is kind of 💩, refactoring is required.
+<!-- Also the code is kind of 💩, refactoring is required.-->
+<!-- Hidden remark from a contributor: It is not 💩! -->
+<!-- TODO: write a vim help file -->
 
-NeoVim plugin with which you can track your usage.
-The examples speak for themselves.
+NeoVim plugin with which you can track your usage along git project, branch and filetype.
 Logs are stored locally, so no sensitive data leaves your machine.
 
-# Install
+![Screenshot of the optional html output](screenshot.webp)
+Use `:UsageTrackerHTML` to see your statistics.
 
-Use your favourite package installer, there are no parameters at the moment. For example:
+# Setup
 
+Use your favourite package manager, configuration parameters are optional. 
+
+- [vim-plug](https://github.com/junegunn/vim-plug):
 ```lua
 Plug 'gaborvecsei/usage-tracker.nvim'
 ```
 
-# Setup
+- [lazy.nvim](https://github.com/folke/lazy.nvim)
+```lua
+{
+  "gaborvecsei/usage-tracker.nvim",
+  config = function()
+    require("usage-tracker").setup({})
+  end,
+}
+```
+
+# Configuration
+
+The setup function can be used to configure parameters. Pass some or all of the possible parameters.
 
 ```lua
 require('usage-tracker').setup({
@@ -25,21 +42,21 @@ require('usage-tracker').setup({
     inactivity_threshold_in_min = 5,
     inactivity_check_freq_in_sec = 5,
     verbose = 0,
-    telemetry_endpoint = "" -- you'll need to start the restapi for this feature
+    telemetry_endpoint = "" -- you'll need to start a REST API endpoint for this
 })
 ```
 
-| Variable                       | Description                                                                       | Type | Default |
-| ------------------------------ | --------------------------------------------------------------------------------- | ---- | ------- |
-| `keep_eventlog_days`           | How much days of data should we keep in the event log after a cleanup             | int  | 14      |
-| `cleanup_freq_days`            | Frequency of the cleanup job for the event logs                                   | int  | 7       |
-| `event_wait_period_in_sec`     | Event logs are only recorded if this much seconds are elapsed while in the buffer | int  | 5       |
-| `inactivity_threshold_in_min`  | If the cursor is not moving for this much time, the timer will be stopped         | int  | 5       |
-| `inactivity_check_freq_in_sec` | How frequently check for inactivity                                               | int  | 1       |
-| `verbose`                      | Debug messages are printed if it's `>0`                                           | int  | 1       |
-| `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                     | str  | ''      |
+| Parameter                      | Description                                                                  | Type | Default |
+| ------------------------------ | ---------------------------------------------------------------------------- | ---- | ------- |
+| `keep_eventlog_days`           | How much days of data should we keep in the event log after a cleanup        | int  | 14      |
+| `cleanup_freq_days`            | Frequency of the cleanup job for the event logs                              | int  | 7       |
+| `event_wait_period_in_sec`     | Event logs are only recorded if this much seconds are elapsed  in the buffer | int  | 5       |
+| `inactivity_threshold_in_min`  | If the cursor is not moving for this number of minutes, the timer is stopped | int  | 5       |
+| `inactivity_check_freq_in_sec` | How frequently check for inactivity (seconds)                                | int  | 1       |
+| `verbose`                      | Debug messages are printed if it's `>0`                                      | int  | 1       |
+| `telemetry_endpoint`           | If defined data will be stored in a sqlite db via the restapi                | str  | ''      |
+| `json_file`                    | path of the text file which stores the usage data                            | str  | cache folder      |
 
-(The variables are in the global space with the prefix `usagetracker_`)
 
 # Usage
 
@@ -47,7 +64,7 @@ A timer starts when you enter a buffer and stops when you leave the buffer (or q
 Both normal and insert mode is counted.
 
 There is inactivity detection, which means that if you don't have any keys pressed down (normal, insert mode) then
-the timer is stopped automatically. Please see the configuration to set your personal preference.
+the timer is stopped automatically. 
 
 ## Commands
 
@@ -61,11 +78,13 @@ the timer is stopped automatically. Please see the configuration to set your per
 - `UsageTrackerShowDailyAggregationByFiletypes [filetypes]`
   - E.g.: `:UsageTrackerShowDailyAggregationByFiletypes lua markdown jsx`
 - `UsageTrackerShowDailyAggregationByProject [project_name]`
-- `:UsageTrackerRemoveEntry <filepath> <entry timestamp> <exit timestamp>`
+- `UsageTrackerRemoveEntry <filepath> <entry timestamp> <exit timestamp>`
   - This is a utility function with which you can remove a wrongly logged item from the json
-- `:UsageTrackerClenup <threshold_in_min>`
-
-## Telemetry (separately storing data in a DB)
+- `UsageTrackerCleanup <threshold_in_min>`
+- `UsageTrackerHTML`
+  - This creates a html site in your cache folder which contains the data for visualization. Again, no data leaves your computer.
+ 
+## Optional telemetry endpoint (separately storing data in a DB)
 
 Usage data saved locally (in the json file) is cleaned up after the set days,
 but if you'd like to keep it longer in a separate SqliteDB, then this is why this feature exists.
@@ -77,13 +96,14 @@ You can use it for custom analysis, just make sure the endpoint is live.
 ```console
 $ git clone https://github.com/gaborvecsei/usage-tracker.nvim.git
 $ cd usage-tracker.nvim/telemetry_api
-$ docker-compose up -d
+$ docker compose up -d
 ```
 
-If you'd like to use a different volume mount then change it in the `docker-compose.yml` file
+Then you should define the parameter `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not change a thing the endpoint is `http://localhost:8000`)
+parameter in the `setup({..., telemetry_endpoint="http://localhost:8000"})`.
 
-Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not changed a thing the endpoint is `http://localhost:8000`)
-parameter in the `setup({..., telemetry_endpoint="http://<HOST>:<PORT>"})`.
+The database (sqlite file) is stored in `usage-tracker.nvim/telemetry_api/sqlite_db/database.db`.
+If you'd like to change that, set a different volume mount in the `docker-compose.yml` file
 
 ## Examples
 
@@ -110,7 +130,7 @@ Filepath                                             Keystrokes  Time (min)  Pro
 /.config/nvim/init.vim                               200         1.56
 ```
 
-You can view the file-specific event (entry, exit) with **`:UsageTrackerShowVisitLog [filepath]`**.
+You can view the file-specific events (entry, exit) with **`:UsageTrackerShowVisitLog [filepath]`**.
 Call the function when you are at the file you are interested in without any arguments or you can provide the filename as an argument.
 An event pair is only saved when more time elapsed than `event_wait_period_in_sec` seconds between the entry and the exit.
 Here is an example output:
@@ -133,7 +153,7 @@ Daily usage in minutes
 2023-07-05 | ################################################################################ | 333.1
 ```
 
-The data is stored in a json file called `usage_data.json` in the neovim config folder (`vim.fn.stdpath("config") .. "/usage_data.json"`)
+The data is stored in a json file called `usage_data.json` in the neovim config folder (`vim.fn.stdpath("config") .. "/usage_data.json"`). This can be configured with the parameter `json_file` in the setup.
 
 # Troubleshooting
 
@@ -144,6 +164,7 @@ These are some of the issues I found when using the plugin. Bughunters are alway
 - Local data does not match up with the telemetry DB 100%
 - Some items in the visit logs are not "closed" - there is no exit time
 - For some visit logs the elapsed time is just too big (you can't code 25 hours in a day)
+- I use `mini.start` and the plugin somehow measured a long activity on the starter window.
 
 ## Issues & Solutions
 

@@ -2,7 +2,6 @@ local utils = require("usage-tracker.utils")
 
 local M = {}
 
-
 --- Creates a lifetime aggregation of the visit logs for each file present in the usage data
 ---@param usage_data table
 ---@return table
@@ -31,7 +30,7 @@ function M.lifetime_aggregation_of_visit_logs(usage_data)
             elapsed_time_in_min = total_elapsed_time_min,
             elapsed_time_in_hour = total_elapsed_time_hour,
         }
-        result[#result + 1] = result_item
+        table.insert(result, result_item)
     end
 
     return result
@@ -40,26 +39,34 @@ end
 --- Creates a daily aggregation of the visit logs
 --- Example for the daily aggregation:
 --- {{day: 2022-01-02, time_in_sec: 2345, keystrokes: 1234}, {day: 2022-01-03, time_in_sec: 2345, keystrokes: 1234}, ...}
----@param filetypes string[] Filetypes which we would like to include, if empty then we don't filter for any filetypes and everything is included
----@param project_name string Project name which we would like to include, if empty then we don't filter for any project and everything is included
+---@param filetypes string[]? Filetypes which we would like to include, if empty then we don't filter for any filetypes and everything is included
+---@param project_name string? Project name which we would like to include, if empty then we don't filter for any project and everything is included
 ---@return table
 function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
     local result = {}
     for filepath, file_data in pairs(usage_data.data) do
-        if (filetypes == nil or utils.list_contains(filetypes, file_data.filetype)) and (project_name == nil or project_name == file_data.git_project_name) then
+        if
+            (filetypes == nil or utils.list_contains(filetypes, file_data.filetype))
+            and (project_name == nil or project_name == file_data.git_project_name)
+        then
             local visit_log = file_data.visit_log
             for _, row_data in ipairs(visit_log) do
                 -- We'll use the entry time as the key for the result table
                 local entry_day_date = utils.timestamp_to_date(row_data.entry, true)
                 local entry_day_date_str = os.date("%Y-%m-%d", row_data.entry)
 
-                local exit_day_date = utils.timestamp_to_date(row_data.exit, true)
+                -- local exit_day_date = utils.timestamp_to_date(row_data.exit, true)
                 local exit_day_date_str = os.date("%Y-%m-%d", row_data.exit)
 
                 if entry_day_date_str ~= exit_day_date_str then
                     utils.verbose_print(
-                        "Entry and exit date are different, we'll use the entry date during the aggregation. Entry: " ..
-                        entry_day_date_str .. ", exit: " .. exit_day_date_str .. ", filepath: " .. filepath)
+                        "Entry and exit date are different, we'll use the entry date during the aggregation. Entry: "
+                            .. entry_day_date_str
+                            .. ", exit: "
+                            .. exit_day_date_str
+                            .. ", filepath: "
+                            .. filepath
+                    )
                 end
 
                 local time_in_sec = row_data.elapsed_time_sec
@@ -116,17 +123,16 @@ function M.create_daily_usage_aggregation(usage_data, filetypes, project_name)
         current_day_timestamp = utils.increment_timestamp_by_days(current_day_timestamp, 1)
     end
 
-
     -- Flatten the table and then order it based on the date
     local result_table = {}
     for day_date_str, data in pairs(result) do
-        result_table[#result_table + 1] = {
+        table.insert(result_table, {
             day_str = day_date_str,
             day_timestamp = utils.date_to_timestamp(data.day),
             time_in_sec = data.time_in_sec,
             time_in_min = math.floor(data.time_in_sec / 60 * 100) / 100,
-            keystrokes = data.keystrokes
-        }
+            keystrokes = data.keystrokes,
+        })
     end
 
     table.sort(result_table, function(a, b)
@@ -155,7 +161,7 @@ function M.aggregate(usage_data, key, start_date_timestamp, end_date_timestamp)
                 if key == "filetype" then
                     agg_field_value = file_data.filetype
                 elseif key == "project" then
-                    agg_field_value = file_data.git_project_name
+                    agg_field_value = file_data.git_project_name .. "." .. file_data.git_branch
                 elseif key == "filepath" then
                     agg_field_value = filepath
                 else
@@ -186,11 +192,11 @@ function M.aggregate(usage_data, key, start_date_timestamp, end_date_timestamp)
     -- Flatten the table and then order it based on the elapsed_time_sec
     local result_table = {}
     for agg_field_value, data in pairs(result) do
-        result_table[#result_table + 1] = {
+        table.insert(result_table, {
             name = agg_field_value,
             time_in_sec = data.time_in_sec,
-            keystrokes = data.keystrokes
-        }
+            keystrokes = data.keystrokes,
+        })
     end
 
     return result_table

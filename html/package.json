@@ -1,0 +1,19 @@
+{
+  "name": "usage-tracker.nvim",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "analyze.js",
+  "jest": {
+    "transform": {}
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "build": "npx webpack --config webpack.conf.cjs"
+  },
+  "devDependencies": {
+    "jest": "^27.5.1",
+    "chart.js": "^4.0.0",
+    "webpack": "^5.72.0",
+    "webpack-cli": "*"
+  }
+}

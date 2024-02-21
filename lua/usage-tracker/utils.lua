@@ -2,7 +2,8 @@ local M = {}
 
 ---@param message string
 function M.verbose_print(message)
-    if vim.g.usagetracker_verbose > 0 then
+    local verbose = require("usage-tracker.config").config.verbose
+    if verbose and verbose > 0 then
         print("[usage-tracker.nvim]: " .. message)
     end
 end
@@ -30,7 +31,7 @@ end
 --- Return a date object from a timestamp
 ---@param timestamp number
 ---@param keep_day_only boolean If true, the hour, minute and second will be set to 0
----@return osdate
+---@return osdate|string
 function M.timestamp_to_date(timestamp, keep_day_only)
     local d = os.date("*t", timestamp)
     if keep_day_only then
@@ -45,6 +46,7 @@ end
 ---@param date osdate
 ---@return number Timestamp
 function M.date_to_timestamp(date)
+    ---@diagnostic disable-next-line:  param-type-mismatch
     return os.time(date)
 end
 
@@ -55,26 +57,38 @@ end
 function M.increment_timestamp_by_days(timestamp, days)
     local increased_date = os.date("*t", timestamp)
     increased_date.day = increased_date.day + days
+    ---@diagnostic disable-next-line:  param-type-mismatch
     local increased_timestamp = os.time(increased_date)
     return increased_timestamp
 end
 
---- Get the current git project name
--- If the file is not in a git project, return an empty string
+---@return string
 function M.get_git_project_name()
-    local result = vim.fn.systemlist('git rev-parse --show-toplevel 2>/dev/null')
-    if vim.v.shell_error == 0 and result[1] ~= '' then
+    local result = vim.fn.systemlist("git rev-parse --show-toplevel 2>/dev/null")
+    -- If the file is not in a git project, return an empty string
+    if vim.v.shell_error == 0 and result ~= nil and result[1] ~= "" then
         local folder_path = vim.trim(result[1])
-        return vim.fn.fnamemodify(folder_path, ":t")
+        return tostring(vim.fn.fnamemodify(folder_path, ":t"))
     else
-        return ''
+        return ""
     end
 end
 
---- Get the git project name
+---@return string
+function M.get_git_branch()
+    local result = vim.fn.systemlist("git branch --show-current 2>/dev/null")
+    if vim.v.shell_error == 0 and result ~= nil and result[1] ~= "" then
+        local folder_path = vim.trim(result[1])
+        return tostring(vim.fn.fnamemodify(folder_path, ":t"))
+    else
+        return ""
+    end
+end
+
 ---@param bufnr integer
+---@return string
 function M.get_buffer_filetype(bufnr)
-    local filetype = vim.api.nvim_buf_get_option(bufnr, "filetype")
+    local filetype = vim.api.nvim_get_option_value("ft", { buf = bufnr })
     if filetype == "" then
         return ""
     else
@@ -84,20 +98,20 @@ end
 
 --- Parse a date string like this 2022-06-12 to a timestamp
 ---@param str string The date string
----@return number The timestamp
+---@return number|nil The timestamp
 function M.convert_string_to_date(str)
     local year, month, day = str:match("(%d+)-(%d+)-(%d+)")
+
+    -- Convert the string components to numbers
+    year = tonumber(year)
+    month = tonumber(month)
+    day = tonumber(day)
 
     -- Check if the date components are valid
     if not year or not month or not day then
         print("Invalid date format. This is the acepted format: YYYY-MM-DD, like 2022-06-12")
         return nil
     end
-
-    -- Convert the string components to numbers
-    year = tonumber(year)
-    month = tonumber(month)
-    day = tonumber(day)
 
     local parsed_date_timestamp = os.time({ year = year, month = month, day = day, hour = 0, min = 0, sec = 0 })
 
