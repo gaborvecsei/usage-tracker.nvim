@@ -82,7 +82,7 @@ $ docker-compose up -d
 
 If you'd like to use a different volume mount then change it in the `docker-compose.yml` file
 
-Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not changed a thing the endpoint is `http://localhost:8000`)
+Then you should define the `telemetry_endpoint="http://<HOST>:<PORT>"` (if you did not change a thing the endpoint is `http://localhost:8000`)
 parameter in the `setup({..., telemetry_endpoint="http://<HOST>:<PORT>"})`.
 
 ## Examples
@@ -139,7 +139,7 @@ The data is stored in a json file called `usage_data.json` in the neovim config 
 
 ## Know issues
 
-These are some of the issues I found when using the plugin. Bughunters are always welcome to check on these. 🤗
+These are some of the issues I found when using the plugin. Bug hunters are always welcome to check on these. 🤗
 
 - Local data does not match up with the telemetry DB 100%
 - Some items in the visit logs are not "closed" - there is no exit time
@@ -149,9 +149,9 @@ These are some of the issues I found when using the plugin. Bughunters are alway
 
 ### Wrongly logged visit entry
 
-If you find a wrongly logged entry then you'll need to remove it from the json file and from the sqlite db
+If you find a wrongly logged entry then you'll need to remove it from the json file and from the SQLite DB
 (if you've enabled telemetry)
 
-- Use the `UsageTrackerRemoveEntry <filepath> <entry> <exit>` utility command to remove the item form the json file
-- As a 2nd step remove it from the sqlite DB with
+- Use the `UsageTrackerRemoveEntry <filepath> <entry> <exit>` utility command to remove the item from the json file
+- As a 2nd step remove it from the SQLite DB with
   `DELETE FROM visits WHERE filepath = 'your_file_path' AND entry = your_entry_time AND exit = your_exit_time;`
